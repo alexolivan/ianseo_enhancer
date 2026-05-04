@@ -1,0 +1,14 @@
+# Ignorar el contenido de ianseo, pero forzar el rastreo de la carpeta vacía
+/ianseo/*
+!/ianseo/.gitkeep
+
+# Ignorar archivos de configuración con credenciales reales
+/wrapper/config.php
+
+# Ignorar logs de servidor o PHP
+*.log
+/logs/
+
+# Archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
