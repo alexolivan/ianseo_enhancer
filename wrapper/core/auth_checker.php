@@ -7,6 +7,10 @@ require_once __DIR__ . '/logger.php'; // Cargamos el Logger
 Logger::debug("=== NUEVA PETICIÓN INTERCEPTADA ===");
 Logger::debug("Script solicitado: " . $_SERVER['PHP_SELF']);
 
+// NUEVO SENSOR: ¿Qué cookies nos está enviando el navegador?
+$cookie_keys = empty($_COOKIE) ? 'Ninguna' : implode(', ', array_keys($_COOKIE));
+Logger::debug("Cookies detectadas en la petición: [$cookie_keys]");
+
 if (session_status() === PHP_SESSION_NONE) {
     session_name(SESSION_NAME);
     session_start();

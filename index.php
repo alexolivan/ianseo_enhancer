@@ -1,6 +1,17 @@
 <?php 
 require_once 'auth.php'; 
-if (!esta_autenticado()) { header("Location: login.php"); exit; }
+// Añadimos nuestro Logger asegurando la ruta correcta desde la raíz
+require_once __DIR__ . '/wrapper/core/logger.php'; 
+
+Logger::debug("=== CARGANDO PORTAL PRINCIPAL (index.php) ===");
+
+if (!esta_autenticado()) { 
+    Logger::info("Portal Principal: Usuario NO autenticado. Expulsando a login.php");
+    header("Location: login.php"); 
+    exit; 
+}
+
+Logger::debug("Portal Principal: Usuario autenticado correctamente. Renderizando iframe...");
 ?>
 <!DOCTYPE html>
 <html lang="es">
