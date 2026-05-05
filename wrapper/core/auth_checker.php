@@ -1,42 +1,49 @@
 <?php
-//wrapper/core/auth_checker.php
+// wrapper/core/auth_checker.php
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/logger.php'; // Cargamos el Logger
 
-// 1. Guardamos el nombre de sesión por defecto (normalmente PHPSESSID)
-$default_session_name = session_name();
+Logger::debug("=== NUEVA PETICIÓN INTERCEPTADA ===");
+Logger::debug("Script solicitado: " . $_SERVER['PHP_SELF']);
 
-// 2. Iniciamos la sesión exclusiva de nuestro Wrapper
 if (session_status() === PHP_SESSION_NONE) {
     session_name(SESSION_NAME);
     session_start();
+    Logger::debug("Sesión iniciada. ID: " . session_id());
+} else {
+    Logger::debug("Sesión ya estaba activa. ID: " . session_id());
 }
 
-// 3. Lógica de Rescate por cookie
+// Rescate por cookie
 if (!isset($_SESSION['user_logged']) && isset($_COOKIE[COOKIE_NAME])) {
+    Logger::info("No hay variable 'user_logged', pero existe la cookie de rescate.");
+    
     if ($_COOKIE[COOKIE_NAME] === COOKIE_SECRET) {
         $_SESSION['user_logged'] = true;
-        if (LOG_ENABLED) error_log("PORTERO: Sesión restaurada.");
+        Logger::info("¡RESCATE EXITOSO! Sesión restaurada vía cookie.");
+    } else {
+        Logger::error("ALERTA: Cookie de rescate detectada pero el SECRET no coincide.");
     }
+} elseif (isset($_SESSION['user_logged'])) {
+    Logger::debug("El usuario ya estaba logueado correctamente en sesión.");
 }
 
-// 4. Verificamos el estado de autenticación y lo guardamos en una variable
-$is_logged_in = isset($_SESSION['user_logged']) && $_SESSION['user_logged'] === true;
-
-// 5. ¡LA MAGIA DEL AISLAMIENTO!: Guardamos y cerramos nuestra sesión.
-// Esto libera a PHP para que Ianseo pueda iniciar su propia sesión sin dar error.
-session_write_close();
-
-// 6. Restauramos el nombre de sesión por defecto para no confundir a Ianseo
-session_name($default_session_name);
-
-// 7. Aplicamos la restricción de acceso usando la variable que guardamos
-if (!$is_logged_in) {
+// Verificación final
+if (!isset($_SESSION['user_logged']) || $_SESSION['user_logged'] !== true) {
     $current_script = basename($_SERVER['PHP_SELF']);
     $public_pages = ['index.php', 'auth.php', 'login.php'];
 
+    Logger::debug("Usuario NO logueado. Evaluando si el script '$current_script' es público.");
+
     if (!in_array($current_script, $public_pages)) {
+        Logger::info("BLOQUEO: Acceso denegado a '$current_script'. Redirigiendo a index.php...");
         header("Location: /index.php");
         exit;
+    } else {
+        Logger::debug("Acceso permitido a página pública: '$current_script'.");
     }
+} else {
+    Logger::debug("Acceso permitido a área protegida.");
 }
+?>
