@@ -40,8 +40,21 @@ if (isset($_GET['logout'])) {
 }
 
 function esta_autenticado() {
-    $estado = isset($_SESSION['user_logged']) && $_SESSION['user_logged'] === true;
-    Logger::debug("auth.php: Función esta_autenticado() evaluada. Resultado: " . ($estado ? "TRUE" : "FALSE"));
-    return $estado;
+    // 1. Si la sesión está viva, todo perfecto
+    if (isset($_SESSION['user_logged']) && $_SESSION['user_logged'] === true) {
+        Logger::debug("auth.php: esta_autenticado() -> TRUE (por sesión)");
+        return true;
+    }
+    
+    // 2. Si la sesión murió, sacamos el salvavidas (el rescate)
+    if (isset($_COOKIE[COOKIE_NAME]) && $_COOKIE[COOKIE_NAME] === COOKIE_SECRET) {
+        Logger::info("auth.php: ¡RESCATE EN FRONTERA! Restaurando sesión desde la cookie...");
+        $_SESSION['user_logged'] = true;
+        return true;
+    }
+
+    // 3. Si no hay sesión ni cookie válida, no pasas
+    Logger::debug("auth.php: esta_autenticado() -> FALSE (sin sesión ni cookie)");
+    return false;
 }
 ?>
