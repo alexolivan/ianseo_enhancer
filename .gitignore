@@ -5,6 +5,10 @@
 # Ignorar archivos de configuración con credenciales reales
 /wrapper/config.php
 
+# Ignorar assets de personalización local (logos, etc.)
+wrapper/assets/*
+!wrapper/assets/.gitkeep
+
 # Ignorar logs de servidor o PHP
 *.log
 /logs/
