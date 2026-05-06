@@ -8,12 +8,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['name'])) {
     $pdo = Database::getInstance()->getConnection();
     $stmt = $pdo->prepare("INSERT INTO kiosk_channels (name) VALUES (?)");
     $stmt->execute([$_POST['name']]);
-    
+
     $newId = $pdo->lastInsertId();
     Logger::info("Kiosko: Nuevo canal creado -> " . $_POST['name']);
-    
+
     // Redirigimos al index y seleccionamos automáticamente el canal recién creado
-    header("Location: index.php?edit_channel=" . $newId);
+    header("Location: index.php?tab=programacion&edit_channel=" . $newId);
     exit;
 }
 ?>
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['name'])) {
                     <input type="text" name="name" class="form-control border-primary" required placeholder="Ej: TV Recepción o Pantalla Pistas">
                 </div>
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="index.php" class="btn btn-outline-secondary">Cancelar</a>
+                    <a href="index.php?tab=programacion" class="btn btn-outline-secondary">Cancelar</a>
                     <button type="submit" class="btn btn-primary">Guardar Canal</button>
                 </div>
             </form>

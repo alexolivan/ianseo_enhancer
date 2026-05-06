@@ -14,5 +14,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['channel_id'])) {
     Logger::info("Kiosko: Canal ID $channel_id eliminado (MariaDB en cascada limpió sus contenidos).");
 }
 
-header("Location: index.php");
+header("Location: index.php?tab=programacion");
 exit;

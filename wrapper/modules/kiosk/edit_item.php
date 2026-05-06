@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
     $url = trim($_POST['url']);
     $duration = (int)$_POST['duration'];
     $id_post = (int)$_POST['id'];
-    
+
     // Necesitamos el channel_id para saber a dónde redirigir al terminar
     $stmt = $pdo->prepare("SELECT channel_id FROM kiosk_contents WHERE id = ?");
     $stmt->execute([$id_post]);
@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
 
     $stmt = $pdo->prepare("UPDATE kiosk_contents SET url = ?, duration = ? WHERE id = ?");
     $stmt->execute([$url, $duration, $id_post]);
-    
+
     Logger::info("Kiosko: Contenido ID $id_post actualizado.");
-    header("Location: index.php?edit_channel=" . $ch_id);
+    header("Location: index.php?tab=programacion&edit_channel=" . $ch_id);
     exit;
 }
 
@@ -61,7 +61,7 @@ if (!$item) {
                 </div>
 
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="index.php?edit_channel=<?= $item['channel_id'] ?>" class="btn btn-outline-secondary">Cancelar</a>
+		    <a href="index.php?tab=programacion&edit_channel=<?= $item['channel_id'] ?>" class="btn btn-outline-secondary">Cancelar</a>
                     <button type="submit" class="btn btn-primary">Actualizar</button>
                 </div>
             </form>

@@ -15,5 +15,5 @@ if (isset($_GET['id']) && isset($_GET['channel'])) {
     Logger::info("Kiosko: Contenido ID $id eliminado del canal $channel_id.");
 }
 
-header("Location: index.php?edit_channel=" . ($channel_id ?? ''));
+header("Location: index.php?tab=programacion&edit_channel=" . ($channel_id ?? ''));
 exit;

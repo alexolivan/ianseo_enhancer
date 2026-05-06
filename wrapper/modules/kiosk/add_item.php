@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
 
     $stmt = $pdo->prepare("INSERT INTO kiosk_contents (channel_id, url, duration, sort_order) VALUES (?, ?, ?, ?)");
     $stmt->execute([$ch_id, $url, $duration, $nextOrder]);
-    
+
     Logger::info("Kiosko: Nueva URL añadida al canal $ch_id.");
-    header("Location: index.php?edit_channel=" . $ch_id);
+    header("Location: index.php?tab=programacion&edit_channel=" . $ch_id);
     exit;
 }
 ?>
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 </div>
 
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="index.php?edit_channel=<?= $channel_id ?>" class="btn btn-outline-secondary">Cancelar</a>
+                    <a href="index.php?tab=programacion&edit_channel=<?= $channel_id ?>" class="btn btn-outline-secondary">Cancelar</a>
                     <button type="submit" class="btn btn-primary">Guardar URL</button>
                 </div>
             </form>
