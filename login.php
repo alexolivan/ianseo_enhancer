@@ -48,17 +48,25 @@ if (file_exists($logoPath)) {
             <h4 class="mb-1 text-dark fw-bold"><?= ORG_NAME ?></h4>
             <p class="text-muted mb-4 small"><?= APP_NAME ?></p>
             
-            <form method="POST" action="auth.php">
-                <!-- Estructura original restaurada para evitar fallos de submit -->
-                <input type="password" name="password" class="form-control form-control-lg mb-3 fs-6" placeholder="Contraseña de acceso" required autofocus>
+	    <form method="POST" action="auth.php">
+                <!-- NUEVO CAMPO: Usuario -->
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                    <input type="text" name="username" class="form-control form-control-lg fs-6" placeholder="Nombre de usuario" required autofocus>
+                </div>
+
+                <div class="input-group mb-4">
+                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                    <input type="password" name="password" class="form-control form-control-lg fs-6" placeholder="Contraseña de acceso" required>
+                </div>
                 
                 <button type="submit" class="btn btn-corporate btn-lg w-100 fs-6 fw-bold">
                     Entrar al Sistema <i class="bi bi-arrow-right-short fs-5 align-middle"></i>
                 </button>
                 
                 <?php if (isset($_GET['error'])): ?>
-                    <div class="alert alert-danger py-2 mt-3 small fw-bold" role="alert">
-                        <i class="bi bi-shield-lock-fill me-1"></i> Contraseña incorrecta
+                    <div class="alert alert-danger py-2 mt-3 small fw-bold d-flex align-items-center justify-content-center" role="alert">
+                        <i class="bi bi-shield-lock-fill me-2 fs-5"></i> Credenciales incorrectas
                     </div>
                 <?php endif; ?>
             </form>
