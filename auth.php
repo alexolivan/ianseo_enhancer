@@ -11,9 +11,9 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Lógica de Login
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset($_POST['password'])) {
-    Logger::debug("auth.php: Intento de login detectado por POST.");
-    
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_attempt'])) {
+    Logger::debug("auth.php: Intento de login validado por marcador 'login_attempt'.");
+
     $username = trim($_POST['username']);
     $password = $_POST['password'];
     $autenticado = false;
@@ -21,8 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
     // A) Vía de Emergencia: Superadmin
     if ($username === SUPERADMIN_USER && password_verify($password, SUPERADMIN_PASS)) {
         $autenticado = true;
+	$userRole = 'superadmin';
         Logger::info("auth.php: Login de SUPERADMIN exitoso.");
-    } 
+    }
     // B) Vía Normal: Base de datos
     else {
         try {
@@ -33,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 $autenticado = true;
+		$userRole = $user['role'];
                 Logger::info("auth.php: Login del usuario '$username' exitoso.");
             } else {
                 Logger::error("auth.php: Intento de login FALLIDO para '$username'.");
@@ -44,14 +46,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
 
     if ($autenticado) {
         session_regenerate_id(true);
-        $_SESSION['user_logged'] = true; 
+        $_SESSION['user_logged'] = true;
         $_SESSION['username'] = $username;
+	$_SESSION['role'] = $userRole;
 
         // Nueva cookie firmada criptográficamente
         $tiempo_expiracion = time() + (86400 * 30);
         $firma = hash_hmac('sha256', $username, APP_SECRET);
         $cookie_token = base64_encode($username . '::' . $firma);
-        
+
         setcookie(COOKIE_NAME, $cookie_token, $tiempo_expiracion, "/", "", false, true);
 
         Logger::info("auth.php: LOGIN EXITOSO. Sesión y cookie creadas. Redirigiendo a index.php...");
@@ -77,7 +80,7 @@ function esta_autenticado() {
     if (isset($_SESSION['user_logged']) && $_SESSION['user_logged'] === true) {
         return true;
     }
-    
+
     // Validar cookie firmada
     if (isset($_COOKIE[COOKIE_NAME])) {
         $cookie_data = base64_decode($_COOKIE[COOKIE_NAME]);
@@ -88,11 +91,41 @@ function esta_autenticado() {
             if (hash_equals($expected_hmac, $saved_hmac)) {
                 $_SESSION['user_logged'] = true;
                 $_SESSION['username'] = $saved_username;
-                Logger::info("auth.php: ¡RESCATE EN FRONTERA! Restaurando sesión para '$saved_username'.");
+
+                //Logger::info("auth.php: ¡RESCATE EN FRONTERA! Restaurando sesión para '$saved_username'.");
+		// 2. NUEVO: Recuperar el rol de la DB para que no se pierda el botón de Admin
+	        try {
+		    $pdo = Database::getInstance()->getConnection();
+	            $stmt = $pdo->prepare("SELECT role FROM users WHERE username = ? AND is_active = 1");
+	             $stmt->execute([$saved_username]);
+	            $role = $stmt->fetchColumn();
+
+	            // Si no está en la DB (es el superadmin del config), le asignamos su rol
+	            if (!$role && $saved_username === SUPERADMIN_USER) {
+	                $role = 'superadmin';
+	            }
+
+	            $_SESSION['role'] = $role ?: 'viewer'; // Por defecto viewer si algo falla
+	            Logger::info("auth.php: ¡RESCATE! Sesión y ROL (" . $_SESSION['role'] . ") restaurados para '$saved_username'.");
+	    	} catch (Exception $e) {
+		    Logger::error("Error recuperando rol en rescate: " . $e->getMessage());
+		}
+
                 return true;
             }
         }
     }
     return false;
 }
+
+function es_admin() {
+    if (!esta_autenticado()) return false;
+
+    // El rol está guardado en la sesión desde el momento del login
+    $rol = $_SESSION['role'] ?? 'viewer';
+
+    // Solo permitimos el paso a los admin de la DB o al superadmin intocable
+    return ($rol === 'admin' || $rol === 'superadmin');
+}
+
 ?>

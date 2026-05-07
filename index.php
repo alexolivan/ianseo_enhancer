@@ -29,7 +29,7 @@ if (file_exists($logoPath)) {
     <title>Portal <?= ORG_NAME ?> - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
+
     <script>
         if (window.top !== window.self) {
             window.top.location.href = window.self.location.href;
@@ -37,13 +37,13 @@ if (file_exists($logoPath)) {
     </script>
     <style>
         body, html { height: 100%; margin: 0; overflow: hidden; background-color: #f8f9fa; }
-        
+
         /* La barra usa tu THEME_COLOR del config.php */
         .navbar-custom { background-color: <?= THEME_COLOR ?>; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .navbar { height: 60px; }
-        
+
         #main-iframe { width: 100%; height: calc(100vh - 60px); border: none; display: block; }
-        
+
         .nav-btn {
             border-radius: 6px;
             padding: 8px 16px !important;
@@ -63,7 +63,7 @@ if (file_exists($logoPath)) {
             <!-- Utilizamos el ORG_NAME definido -->
             <span class="d-none d-sm-inline tracking-wide"><?= ORG_NAME ?></span>
         </a>
-        
+
         <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -87,13 +87,23 @@ if (file_exists($logoPath)) {
                     </a>
                 </li>
             </ul>
-            
-            <div class="d-flex align-items-center gap-3">
-                <span class="text-light small opacity-75 d-none d-md-block"><i class="bi bi-person-circle me-1"></i>Admin</span>
-                <a href="auth.php?logout=1" class="btn btn-outline-light btn-sm" title="Cerrar Sesión">
-                    <i class="bi bi-box-arrow-right me-1"></i>Salir
-                </a>
-            </div>
+
+	    <div class="d-flex align-items-center gap-3">
+	        <?php if (es_admin()): ?>
+	            <a href="wrapper/core/users/index.php" target="main-frame" class="btn btn-outline-warning btn-sm d-none d-md-block" onclick="setActive(null)">
+	                <i class="bi bi-gear-fill me-1"></i> Admin Usuarios
+	            </a>
+	        <?php else: ?>
+	            <span class="text-light small opacity-75 d-none d-md-block">
+	                <i class="bi bi-person-circle me-1"></i> <?= htmlspecialchars($_SESSION['username']) ?>
+	            </span>
+	        <?php endif; ?>
+
+	        <a href="auth.php?logout=1" class="btn btn-outline-light btn-sm" title="Cerrar Sesión">
+	            <i class="bi bi-box-arrow-right me-1"></i> Salir
+	        </a>
+	    </div>
+
         </div>
     </nav>
 

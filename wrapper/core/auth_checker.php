@@ -16,7 +16,7 @@ if (session_status() === PHP_SESSION_NONE) {
 if (!isset($_SESSION['user_logged']) && isset($_COOKIE[COOKIE_NAME])) {
     Logger::info("auth_checker: Evaluando cookie de rescate...");
     $cookie_data = base64_decode($_COOKIE[COOKIE_NAME]);
-    
+
     if (strpos($cookie_data, '::') !== false) {
         list($saved_username, $saved_hmac) = explode('::', $cookie_data);
         $expected_hmac = hash_hmac('sha256', $saved_username, APP_SECRET);
@@ -24,7 +24,26 @@ if (!isset($_SESSION['user_logged']) && isset($_COOKIE[COOKIE_NAME])) {
         if (hash_equals($expected_hmac, $saved_hmac)) {
             $_SESSION['user_logged'] = true;
             $_SESSION['username'] = $saved_username;
-            Logger::info("¡RESCATE EXITOSO! Sesión restaurada vía cookie para '$saved_username'.");
+
+            //Logger::info("¡RESCATE EXITOSO! Sesión restaurada vía cookie para '$saved_username'.");
+	    // Recuperar el rol para que los scripts internos sepan qué permisos tienes
+	    require_once __DIR__ . '/database/database.php';
+	    try {
+	        $pdo = Database::getInstance()->getConnection();
+	        $stmt = $pdo->prepare("SELECT role FROM users WHERE username = ? AND is_active = 1");
+	        $stmt->execute([$saved_username]);
+	        $role = $stmt->fetchColumn();
+
+	        if (!$role && $saved_username === SUPERADMIN_USER) {
+	            $role = 'superadmin';
+	        }
+
+	        $_SESSION['role'] = $role ?: 'viewer';
+	        Logger::info("auth_checker: Rol restaurado tras rescate de sesión.");
+	    } catch (Exception $e) {
+	         Logger::error("auth_checker: Fallo al restaurar rol.");
+	    }
+
         } else {
             Logger::error("ALERTA: Firma de cookie inválida.");
         }
