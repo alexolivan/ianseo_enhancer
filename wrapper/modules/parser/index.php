@@ -238,6 +238,19 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 	    background-color: #eff6ff !important;
 	}
 
+	#modal-rules-container {
+	    min-height: 200px;
+	    max-height: 400px; /* Altura fija para forzar el scroll */
+	    overflow-y: auto;
+	    padding-right: 10px;
+	}
+	/* Estilo para los inputs del modal */
+	#modal-rules-container input:focus {
+	    outline: none;
+	    border-color: var(--primary);
+	    box-shadow: 0 0 0 2px #eff6ff;
+	}
+
     </style>
 </head>
 <body>
@@ -592,13 +605,10 @@ function populateIanseoTargets() {
         const type = select.getAttribute('data-type');
         const isAffiliation = select.classList.contains('affil-code');
 
-        if (type && type.startsWith('passthrough')) {
-            // Passthrough puros (Bib, Apellidos, Nombre, DOB) despiertan de inmediato
-            select.disabled = false;
-        } else if (type === 'mapping') {
-            // Mapping (Sesión, División, Clase, Género) nacen bloqueados esperando a la rueda ⚙️
-            select.disabled = true;
-        }
+	// Busca esta parte en tu función y déjala así:
+	if (type && (type.startsWith('passthrough') || type === 'mapping')) {
+	    select.disabled = false; // Ahora todos están abiertos para poder elegir la columna antes de mapear
+	}
 
         // Las afiliaciones se gestionan por su propia lógica de cascada (inicialmente bloqueamos 2 y 3)
         const moduleNum = select.getAttribute('data-module');
@@ -625,12 +635,15 @@ function parseCSVLine(line, delimiter) {
 // --- CONTROLADORES DE INTERFAZ (ESQUEMA 21 CAMPOS) ---
 
 // Escuchar cambios en todos los selectores de destino Ianseo
+//document.querySelectorAll('.target-field').forEach(select => {
+//    select.addEventListener('change', function() {
+//        updateTableHeaders();
+//        validateDateColumns();
+//        // Aquí llamaremos también a la validación de cascada de afiliaciones más adelante
+//    });
+//});
 document.querySelectorAll('.target-field').forEach(select => {
-    select.addEventListener('change', function() {
-        updateTableHeaders();
-        validateDateColumns();
-        // Aquí llamaremos también a la validación de cascada de afiliaciones más adelante
-    });
+    select.addEventListener('change', updateUIState);
 });
 
 
@@ -743,6 +756,175 @@ function updateUIState() {
         }
     }
 }
+
+// --- LÓGICA DEL MODAL DE MAPEO (AUTOCONTENIDA Y COMPLETA) ---
+
+// 1. ESTADO LOCAL Y REFERENCIAS DOM
+let currentMappingField = null; 
+const mappingModal = document.getElementById('mapping-modal');
+const modalTitle = document.getElementById('modal-title');
+const btnCloseModal = document.getElementById('btn-close-modal');
+
+// 2. CONTROLADOR DE APERTURA (Ruedas ⚙️)
+document.querySelectorAll('.map-trigger').forEach(button => {
+    button.addEventListener('click', function(e) {
+        e.preventDefault();
+        currentMappingField = this.getAttribute('data-field-name');
+        if (!currentMappingField) return; // Programación defensiva
+
+        modalTitle.innerText = `Configuración de Mapa: ${currentMappingField}`;
+        
+        // Evaluar si el botón de auto-poblar debe estar activo según la columna elegida
+        const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
+        const btnAuto = document.getElementById('btn-autopopulate');
+        
+        if (!selector || selector.value === "") {
+            btnAuto.disabled = true;
+            btnAuto.innerText = "⚠️ Pre-poblar inactivo: Selecciona una columna en el panel primero";
+            btnAuto.style.opacity = "0.5";
+            btnAuto.style.cursor = "not-allowed";
+        } else {
+            btnAuto.disabled = false;
+            btnAuto.innerText = "✨ Pre-poblar claves detectadas en la columna origen";
+            btnAuto.style.opacity = "1";
+            btnAuto.style.cursor = "pointer";
+        }
+
+        renderModalRules();
+        mappingModal.style.display = 'flex';
+    });
+});
+
+// 3. CONTROLADORES DE CIERRE
+btnCloseModal.addEventListener('click', closeModal);
+mappingModal.addEventListener('click', function(e) {
+    if (e.target === mappingModal) closeModal();
+});
+
+function closeModal() {
+    mappingModal.style.display = 'none';
+    currentMappingField = null;
+}
+
+// 4. CONTROLADOR AUTO-POBLAR
+document.getElementById('btn-autopopulate').addEventListener('click', function() {
+    if (this.disabled) return;
+    const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
+    const colIdx = selector ? selector.value : "";
+    if (colIdx === "") return;
+    
+    // Extraer únicos directamente de la RAM
+    const uniqueValues = [...new Set(rawDataRows.map(row => row[colIdx] ? row[colIdx].trim() : ''))].filter(v => v !== "");
+    
+    // Evitar duplicar filas si el usuario ya había escrito la clave a mano
+    const existingKeys = Array.from(document.querySelectorAll('#modal-rules-container .rule-key')).map(input => input.value.trim());
+
+    uniqueValues.forEach(val => {
+        if (!existingKeys.includes(val)) {
+            appendRuleRow(val, "", "");
+        }
+    });
+});
+
+// 5. MOTOR DE RENDERIZADO DEL MODAL
+function renderModalRules() {
+    const container = document.getElementById('modal-rules-container');
+    container.innerHTML = '';
+    
+    const rules = profileRulesRAM[currentMappingField] || {};
+    const isDoubleOutput = currentMappingField.startsWith('Affil'); // Detecta si es País/Club/Equipo
+
+    // Maquetar Cabecera de columnas
+    const header = document.createElement('div');
+    header.style = "display: flex; gap: 10px; margin-bottom: 12px; font-weight: 700; font-size: 0.75rem; color: #64748b; text-transform: uppercase;";
+    header.innerHTML = isDoubleOutput 
+        ? `<div style="flex:1">Clave Origen (CSV)</div><div style="flex:1">ID Ianseo *</div><div style="flex:1">Nombre Oficial</div><div style="width:28px"></div>`
+        : `<div style="flex:1">Clave Origen (CSV)</div><div style="flex:1">Salida Ianseo *</div><div style="width:28px"></div>`;
+    container.appendChild(header);
+
+    // Envoltorio para las filas
+    const rowsWrapper = document.createElement('div');
+    rowsWrapper.id = "rows-wrapper";
+    container.appendChild(rowsWrapper);
+
+    // Volcar lo que ya exista guardado en RAM
+    const keys = Object.keys(rules);
+    keys.forEach(key => {
+        appendRuleRow(key, rules[key].out, rules[key].secondary);
+    });
+
+    // Fila en blanco inicial si el mapa es virgen
+    if (keys.length === 0) {
+        appendRuleRow("", "", "");
+    }
+
+    // Botón para tabulación continua manual
+    const btnAdd = document.createElement('button');
+    btnAdd.type = "button";
+    btnAdd.innerText = "+ Añadir fila vacía";
+    btnAdd.style = "margin-top: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; color: var(--primary); font-weight: 600; padding: 0.5rem; width: 100%; cursor: pointer; border-radius: 4px; font-size: 0.85rem; transition: all 0.2s;";
+    btnAdd.onclick = () => appendRuleRow("", "", "");
+    container.appendChild(btnAdd);
+}
+
+// 6. INYECTOR DOM DE FILAS (Totalmente editables)
+function appendRuleRow(keyVal, outVal, secVal) {
+    const wrapper = document.getElementById('rows-wrapper');
+    if (!wrapper) return;
+    const isDoubleOutput = currentMappingField.startsWith('Affil');
+    const row = document.createElement('div');
+    row.className = "rule-row";
+    row.style = "display: flex; gap: 10px; margin-bottom: 8px; align-items: center;";
+    
+    row.innerHTML = isDoubleOutput 
+        ? `
+            <input type="text" value="${keyVal}" class="rule-key" placeholder="Ej: BCN" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="ID (Ej: 2011)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${secVal}" class="rule-secondary" placeholder="Nombre Oficial" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
+        `
+        : `
+            <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto en CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="Código Ianseo" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
+        `;
+    wrapper.appendChild(row);
+    
+    // Foco automático si la fila es nueva
+    if (keyVal === "") {
+        const firstInput = row.querySelector('.rule-key');
+        if (firstInput) firstInput.focus();
+    }
+}
+
+// 7. PERSISTENCIA EN RAM Y REFRESCO UI
+document.getElementById('btn-save-map').addEventListener('click', function() {
+    const wrapper = document.getElementById('rows-wrapper');
+    if (!wrapper) return;
+    const rows = wrapper.querySelectorAll('.rule-row');
+    
+    profileRulesRAM[currentMappingField] = {}; // Purgar estado anterior
+
+    rows.forEach(row => {
+        const key = row.querySelector('.rule-key').value.trim();
+        const out = row.querySelector('.rule-out').value.trim();
+        const sec = row.querySelector('.rule-secondary') ? row.querySelector('.rule-secondary').value.trim() : "";
+        
+        if (key !== "") {
+            profileRulesRAM[currentMappingField][key] = { out: out, secondary: sec };
+        }
+    });
+
+    // Feedback visual en el panel: teñir el engranaje si el mapa tiene contenido
+    const targetSelect = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
+    if (targetSelect && Object.keys(profileRulesRAM[currentMappingField]).length > 0) {
+        const gearBtn = document.querySelector(`.map-trigger[data-field-name="${currentMappingField}"]`);
+        if (gearBtn) gearBtn.style.background = "#dcfce7"; // Verde suave
+    }
+
+    closeModal();
+    if (typeof updateUIState === 'function') updateUIState(); // Refrescar alertas en el frontal
+});
 
 </script>
 </body>
