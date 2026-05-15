@@ -69,6 +69,13 @@ require_once __DIR__ . '/../../core/auth_checker.php';
             text-align: left;
             font-size: 0.9rem;
         }
+	#csv-table thead th {
+	    position: sticky !important;
+	    top: 0 !important;
+	    z-index: 10 !important;
+	    background-color: #f8fafc !important; /* Tapa los datos al subir */
+	    box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05) !important;
+	}
         th, td {
             padding: 0.75rem 1rem;
             border-bottom: 1px solid var(--border-color);
@@ -91,7 +98,7 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 	}
 	.split-layout {
 	    display: grid;
-	    grid-template-columns: 1fr 420px; /* Izquierda fluido, Derecha fijo compacto */
+	    grid-template-columns: 1fr 460px; /* Izquierda fluido, Derecha fijo compacto */
 	    gap: 1.5rem;
 	    align-items: start;
 	}
@@ -128,6 +135,9 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 	    border-radius: 8px;
 	    padding: 1.25rem 1rem;
 	    margin: 0;
+	    box-sizing: border-box; /* Obliga a que el padding se calcule hacia adentro, no hacia afuera */
+	    width: 100%;
+	    min-width: 0; /* Anula el comportamiento cabezota de los fieldsets que causa el desbordamiento */
 	}
 	.ianseo-fieldset legend {
 	    font-weight: 600;
@@ -205,6 +215,8 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 
 	/* --- FORZAR SCROLLBARS PERSISTENTES EN LA TABLA --- */
 	.left-panel .table-container {
+	    max-height: 82vh; /* Ocupará el 82% de la altura de tu pantalla */
+	    overflow-y: auto; /* Activa el scroll vertical interno */
 	    scrollbar-width: thin; /* Para Firefox */
 	    scrollbar-color: #94a3b8 #f1f5f9;
 	}
@@ -250,7 +262,6 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 	    border-color: var(--primary);
 	    box-shadow: 0 0 0 2px #eff6ff;
 	}
-
     </style>
 </head>
 <body>
@@ -448,18 +459,131 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                         </div>
                     </div>
 
-                    <details style="margin-top: 1.25rem; border-top: 1px solid #e2e8f0; padding-top: 0.75rem;">
+		    <!-- BLOQUE D: INSCRIPCIONES A EVENTOS (Siempre visible) -->
+                    <div style="margin-top: 1.25rem; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem;">
+                        Inscripciones a Eventos
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+
+                        <!-- 6) Indiv. Div/Class -->
+                        <div class="event-block" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span class="control-label" style="width: auto; font-weight: 700; color: #334155;">6. Evento Indiv. (Clasif)</span>
+                                <select class="column-select event-mode-select" data-field-name="IndDivClass" style="width: 170px; font-size: 0.75rem; background: #fff;">
+                                    <option value="force-yes">Forzar Inscripción (1)</option>
+                                    <option value="force-no">No Inscrito (Vacío)</option>
+                                    <option value="mapping">Depende de columna...</option>
+                                </select>
+                            </div>
+                            <div class="control-row event-mapping-row" style="display: none; border-bottom: none; padding: 0;">
+                                <span class="control-label" style="font-size: 0.75rem; color: #64748b;">Columna Origen:</span>
+                                <button class="btn-gear map-trigger" data-field-index="6" data-field-name="IndDivClass" title="Mapear valores a 1">⚙️</button>
+                                <select class="column-select target-field" data-field-index="6" data-field-name="IndDivClass" data-type="boolean-mapping" disabled>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 7) Team - Division/Class -->
+                        <div class="event-block" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span class="control-label" style="width: auto; font-weight: 700; color: #334155;">7. Evento Equipos (Clasif)</span>
+                                <select class="column-select event-mode-select" data-field-name="TeamDivClass" style="width: 170px; font-size: 0.75rem; background: #fff;">
+                                    <option value="force-yes">Forzar Inscripción (1)</option>
+                                    <option value="force-no">No Inscrito (Vacío)</option>
+                                    <option value="mapping">Depende de columna...</option>
+                                </select>
+                            </div>
+                            <div class="control-row event-mapping-row" style="display: none; border-bottom: none; padding: 0;">
+                                <span class="control-label" style="font-size: 0.75rem; color: #64748b;">Columna Origen:</span>
+                                <button class="btn-gear map-trigger" data-field-index="7" data-field-name="TeamDivClass" title="Mapear valores a 1">⚙️</button>
+                                <select class="column-select target-field" data-field-index="7" data-field-name="TeamDivClass" data-type="boolean-mapping" disabled>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 8) Ind. Events (Eliminatorias/Finales) -->
+                        <div class="event-block" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span class="control-label" style="width: auto; font-weight: 700; color: #334155;">8. Eliminatorias Indiv.</span>
+                                <select class="column-select event-mode-select" data-field-name="IndEvents" style="width: 170px; font-size: 0.75rem; background: #fff;">
+                                    <option value="force-yes">Forzar Inscripción (1)</option>
+                                    <option value="force-no">No Inscrito (Vacío)</option>
+                                    <option value="mapping">Depende de columna...</option>
+                                </select>
+                            </div>
+                            <div class="control-row event-mapping-row" style="display: none; border-bottom: none; padding: 0;">
+                                <span class="control-label" style="font-size: 0.75rem; color: #64748b;">Columna Origen:</span>
+                                <button class="btn-gear map-trigger" data-field-index="8" data-field-name="IndEvents" title="Mapear valores a 1">⚙️</button>
+                                <select class="column-select target-field" data-field-index="8" data-field-name="IndEvents" data-type="boolean-mapping" disabled>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 9) Team Events (Eliminatorias Equipos) -->
+                        <div class="event-block" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span class="control-label" style="width: auto; font-weight: 700; color: #334155;">9. Eliminatorias Equipos</span>
+                                <select class="column-select event-mode-select" data-field-name="TeamEvents" style="width: 170px; font-size: 0.75rem; background: #fff;">
+                                    <option value="force-yes">Forzar Inscripción (1)</option>
+                                    <option value="force-no">No Inscrito (Vacío)</option>
+                                    <option value="mapping">Depende de columna...</option>
+                                </select>
+                            </div>
+                            <div class="control-row event-mapping-row" style="display: none; border-bottom: none; padding: 0;">
+                                <span class="control-label" style="font-size: 0.75rem; color: #64748b;">Columna Origen:</span>
+                                <button class="btn-gear map-trigger" data-field-index="9" data-field-name="TeamEvents" title="Mapear valores a 1">⚙️</button>
+                                <select class="column-select target-field" data-field-index="9" data-field-name="TeamEvents" data-type="boolean-mapping" disabled>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 10) Mixed Team Events -->
+                        <div class="event-block" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span class="control-label" style="width: auto; font-weight: 700; color: #334155;">10. Equipos Mixtos</span>
+                                <select class="column-select event-mode-select" data-field-name="MixedEvents" style="width: 170px; font-size: 0.75rem; background: #fff;">
+                                    <option value="force-yes">Forzar Inscripción (1)</option>
+                                    <option value="force-no">No Inscrito (Vacío)</option>
+                                    <option value="mapping">Depende de columna...</option>
+                                </select>
+                            </div>
+                            <div class="control-row event-mapping-row" style="display: none; border-bottom: none; padding: 0;">
+                                <span class="control-label" style="font-size: 0.75rem; color: #64748b;">Columna Origen:</span>
+                                <button class="btn-gear map-trigger" data-field-index="10" data-field-name="MixedEvents" title="Mapear valores a 1">⚙️</button>
+                                <select class="column-select target-field" data-field-index="10" data-field-name="MixedEvents" data-type="boolean-mapping" disabled>
+                                    <option value="">-- Seleccionar --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- BLOQUE E: CAMPOS EXTRA / OPCIONALES (Plegados) -->
+                    <details style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 0.75rem;">
                         <summary style="font-size: 0.8rem; font-weight: 700; color: var(--primary); cursor: pointer; user-select: none;">
-                            Mostrar Campos Opcionales / Eventos (5-10, 17)
+                            + Mostrar Campos Extra (Diana / Subclase)
                         </summary>
-                        <div style="padding-top: 0.5rem;">
-                            <div class="control-row"><span class="control-label">5. Diana (Target)</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="5" data-field-name="Target" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">6. Indiv. Div/Class</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="6" data-field-name="IndDivClass" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">7. Team Div/Class</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="7" data-field-name="TeamDivClass" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">8. Ind. Events</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="8" data-field-name="IndEvents" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">9. Team Events</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="9" data-field-name="TeamEvents" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">10. Mixed Events</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="10" data-field-name="MixedEvents" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
-                            <div class="control-row"><span class="control-label">17. Subclase</span><button class="btn-gear" disabled>-</button><select class="column-select target-field" data-field-index="17" data-field-name="Subclass" data-type="passthrough"><option value="">-- Ignorar --</option></select></div>
+                        <div style="padding-top: 0.75rem;">
+                            <!-- 5) Target -->
+                            <div class="control-row">
+                                <span class="control-label">5. Diana (Target)</span>
+                                <button class="btn-gear" disabled>-</button>
+                                <select class="column-select target-field" data-field-index="5" data-field-name="Target" data-type="passthrough">
+                                    <option value="">-- Ignorar --</option>
+                                </select>
+                            </div>
+                            <!-- 17) Subclass -->
+                            <div class="control-row">
+                                <span class="control-label">17. Subclase</span>
+                                <button class="btn-gear" disabled>-</button>
+                                <select class="column-select target-field" data-field-index="17" data-field-name="Subclass" data-type="passthrough">
+                                    <option value="">-- Ignorar --</option>
+                                </select>
+                            </div>
                         </div>
                     </details>
 
@@ -654,6 +778,28 @@ document.querySelectorAll('.target-field').forEach(select => {
     select.addEventListener('change', updateUIState);
 });
 
+// --- CONTROLADOR DE EVENTOS TRI-ESTADO (Campos 6-10) ---
+document.querySelectorAll('.event-mode-select').forEach(modeSelect => {
+    modeSelect.addEventListener('change', function() {
+        // Encontrar la fila de mapeo hija dentro de este bloque
+        const block = this.closest('.event-block');
+        const mappingRow = block.querySelector('.event-mapping-row');
+        const targetSelect = block.querySelector('.target-field');
+
+        if (this.value === 'mapping') {
+            // Mostrar controles de columna y rueda
+            mappingRow.style.display = 'flex';
+            targetSelect.disabled = false;
+        } else {
+            // Ocultar controles y deseleccionar columna (limpia la tabla izquierda)
+            mappingRow.style.display = 'none';
+            targetSelect.value = ""; 
+            targetSelect.disabled = true;
+            if (typeof updateUIState === 'function') updateUIState();
+        }
+    });
+});
+
 // Llamar a esta función también al final de populateIanseoTargets() para inicializar los rojos
 // (Añade updateUIState(); justo antes de cerrar la función populateIanseoTargets)
 
@@ -757,37 +903,42 @@ function updateUIState() {
     }
 }
 
-// --- LÓGICA DEL MODAL DE MAPEO (AUTOCONTENIDA Y COMPLETA) ---
 
-// 1. ESTADO LOCAL Y REFERENCIAS DOM
+// --- LÓGICA DEL MODAL DE MAPEO (ESTÁNDAR Y BOOLEANO) ---
 let currentMappingField = null; 
+let currentMappingType = null; // Detectará si es 'mapping' o 'boolean-mapping'
 const mappingModal = document.getElementById('mapping-modal');
 const modalTitle = document.getElementById('modal-title');
 const btnCloseModal = document.getElementById('btn-close-modal');
 
-// 2. CONTROLADOR DE APERTURA (Ruedas ⚙️)
+// 1. ABRIR MODAL
 document.querySelectorAll('.map-trigger').forEach(button => {
     button.addEventListener('click', function(e) {
         e.preventDefault();
         currentMappingField = this.getAttribute('data-field-name');
-        if (!currentMappingField) return; // Programación defensiva
+        if (!currentMappingField) return;
 
-        modalTitle.innerText = `Configuración de Mapa: ${currentMappingField}`;
-        
-        // Evaluar si el botón de auto-poblar debe estar activo según la columna elegida
+        // Averiguamos el tipo de campo
         const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
-        const btnAuto = document.getElementById('btn-autopopulate');
+        currentMappingType = selector ? selector.getAttribute('data-type') : 'mapping';
+
+        modalTitle.innerText = `Configuración: ${currentMappingField}`;
         
-        if (!selector || selector.value === "") {
-            btnAuto.disabled = true;
-            btnAuto.innerText = "⚠️ Pre-poblar inactivo: Selecciona una columna en el panel primero";
-            btnAuto.style.opacity = "0.5";
-            btnAuto.style.cursor = "not-allowed";
+        // El botón de auto-poblar solo tiene sentido en mapeos estándar
+        const btnAuto = document.getElementById('btn-autopopulate');
+        if (currentMappingType === 'boolean-mapping') {
+            btnAuto.style.display = 'none'; // Lo ocultamos para eventos
         } else {
-            btnAuto.disabled = false;
-            btnAuto.innerText = "✨ Pre-poblar claves detectadas en la columna origen";
-            btnAuto.style.opacity = "1";
-            btnAuto.style.cursor = "pointer";
+            btnAuto.style.display = 'block';
+            if (!selector || selector.value === "") {
+                btnAuto.disabled = true;
+                btnAuto.innerText = "⚠️ Selecciona una columna origen primero";
+                btnAuto.style.opacity = "0.5";
+            } else {
+                btnAuto.disabled = false;
+                btnAuto.innerText = "✨ Pre-poblar claves detectadas";
+                btnAuto.style.opacity = "1";
+            }
         }
 
         renderModalRules();
@@ -795,7 +946,7 @@ document.querySelectorAll('.map-trigger').forEach(button => {
     });
 });
 
-// 3. CONTROLADORES DE CIERRE
+// 2. CERRAR MODAL
 btnCloseModal.addEventListener('click', closeModal);
 mappingModal.addEventListener('click', function(e) {
     if (e.target === mappingModal) closeModal();
@@ -804,37 +955,52 @@ mappingModal.addEventListener('click', function(e) {
 function closeModal() {
     mappingModal.style.display = 'none';
     currentMappingField = null;
+    currentMappingType = null;
 }
 
-// 4. CONTROLADOR AUTO-POBLAR
+// 3. AUTO-POBLAR (Solo para estándar)
 document.getElementById('btn-autopopulate').addEventListener('click', function() {
-    if (this.disabled) return;
+    if (this.disabled || currentMappingType === 'boolean-mapping') return;
     const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
-    const colIdx = selector ? selector.value : "";
-    if (colIdx === "") return;
+    if (!selector || selector.value === "") return;
     
-    // Extraer únicos directamente de la RAM
-    const uniqueValues = [...new Set(rawDataRows.map(row => row[colIdx] ? row[colIdx].trim() : ''))].filter(v => v !== "");
-    
-    // Evitar duplicar filas si el usuario ya había escrito la clave a mano
+    const uniqueValues = [...new Set(rawDataRows.map(row => row[selector.value] ? row[selector.value].trim() : ''))].filter(v => v !== "");
     const existingKeys = Array.from(document.querySelectorAll('#modal-rules-container .rule-key')).map(input => input.value.trim());
 
     uniqueValues.forEach(val => {
-        if (!existingKeys.includes(val)) {
-            appendRuleRow(val, "", "");
-        }
+        if (!existingKeys.includes(val)) appendRuleRow(val, "", "");
     });
 });
 
-// 5. MOTOR DE RENDERIZADO DEL MODAL
+// 4. RENDERIZAR EL CONTENIDO SEGÚN TIPO DE CAMPO
 function renderModalRules() {
     const container = document.getElementById('modal-rules-container');
     container.innerHTML = '';
-    
     const rules = profileRulesRAM[currentMappingField] || {};
-    const isDoubleOutput = currentMappingField.startsWith('Affil'); // Detecta si es País/Club/Equipo
 
-    // Maquetar Cabecera de columnas
+    // MODO A: MAPEO BOOLEANO PARA EVENTOS (Tú idea de lista separada por comas)
+    if (currentMappingType === 'boolean-mapping') {
+        const triggers = rules.triggers || ""; // Recuperamos la lista si ya existía
+        
+        container.innerHTML = `
+            <div style="margin-bottom: 1rem; color: #475569; font-size: 0.9rem;">
+                Introduce los valores (separados por comas) que significan <strong>"Sí, está inscrito"</strong>.<br>
+                <span style="font-size: 0.8rem; color: #64748b;">Ejemplo: <code style="background:#f1f5f9; padding:2px 4px; border-radius:3px;">Sí, X, 1, True, Inscrito</code></span>
+            </div>
+            <input type="text" id="boolean-triggers-input" value="${triggers}" 
+                   placeholder="Valores que activan la inscripción..." 
+                   style="width: 100%; padding: 0.75rem; border: 1px solid var(--primary); border-radius: 6px; font-size: 1rem; outline: none; box-shadow: 0 0 0 3px #eff6ff;">
+            <div style="margin-top: 0.75rem; font-size: 0.8rem; color: #10b981;">
+                Cualquier otro valor en el CSV será ignorado (No inscrito).
+            </div>
+        `;
+        // Dar foco automático para máxima comodidad
+        setTimeout(() => document.getElementById('boolean-triggers-input').focus(), 50);
+        return;
+    }
+
+    // MODO B: MAPEO ESTÁNDAR / AFILIACIONES (El que ya teníamos)
+    const isDoubleOutput = currentMappingField.startsWith('Affil');
     const header = document.createElement('div');
     header.style = "display: flex; gap: 10px; margin-bottom: 12px; font-weight: 700; font-size: 0.75rem; color: #64748b; text-transform: uppercase;";
     header.innerHTML = isDoubleOutput 
@@ -842,23 +1008,14 @@ function renderModalRules() {
         : `<div style="flex:1">Clave Origen (CSV)</div><div style="flex:1">Salida Ianseo *</div><div style="width:28px"></div>`;
     container.appendChild(header);
 
-    // Envoltorio para las filas
     const rowsWrapper = document.createElement('div');
     rowsWrapper.id = "rows-wrapper";
     container.appendChild(rowsWrapper);
 
-    // Volcar lo que ya exista guardado en RAM
     const keys = Object.keys(rules);
-    keys.forEach(key => {
-        appendRuleRow(key, rules[key].out, rules[key].secondary);
-    });
+    keys.forEach(key => appendRuleRow(key, rules[key].out, rules[key].secondary));
+    if (keys.length === 0) appendRuleRow("", "", "");
 
-    // Fila en blanco inicial si el mapa es virgen
-    if (keys.length === 0) {
-        appendRuleRow("", "", "");
-    }
-
-    // Botón para tabulación continua manual
     const btnAdd = document.createElement('button');
     btnAdd.type = "button";
     btnAdd.innerText = "+ Añadir fila vacía";
@@ -867,7 +1024,7 @@ function renderModalRules() {
     container.appendChild(btnAdd);
 }
 
-// 6. INYECTOR DOM DE FILAS (Totalmente editables)
+// 5. INYECTOR DE FILAS (Solo para estándar)
 function appendRuleRow(keyVal, outVal, secVal) {
     const wrapper = document.getElementById('rows-wrapper');
     if (!wrapper) return;
@@ -875,56 +1032,46 @@ function appendRuleRow(keyVal, outVal, secVal) {
     const row = document.createElement('div');
     row.className = "rule-row";
     row.style = "display: flex; gap: 10px; margin-bottom: 8px; align-items: center;";
-    
     row.innerHTML = isDoubleOutput 
-        ? `
-            <input type="text" value="${keyVal}" class="rule-key" placeholder="Ej: BCN" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="ID (Ej: 2011)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${secVal}" class="rule-secondary" placeholder="Nombre Oficial" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
-        `
-        : `
-            <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto en CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="Código Ianseo" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
-        `;
+        ? `<input type="text" value="${keyVal}" class="rule-key" placeholder="Ej: BCN" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;"><input type="text" value="${outVal}" class="rule-out" placeholder="ID (Ej: 2011)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;"><input type="text" value="${secVal}" class="rule-secondary" placeholder="Nombre" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;"><button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>`
+        : `<input type="text" value="${keyVal}" class="rule-key" placeholder="Texto CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;"><input type="text" value="${outVal}" class="rule-out" placeholder="Salida" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;"><button type="button" onclick="this.parentElement.remove()" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>`;
     wrapper.appendChild(row);
-    
-    // Foco automático si la fila es nueva
-    if (keyVal === "") {
-        const firstInput = row.querySelector('.rule-key');
-        if (firstInput) firstInput.focus();
-    }
 }
 
-// 7. PERSISTENCIA EN RAM Y REFRESCO UI
+// 6. GUARDAR EN RAM
 document.getElementById('btn-save-map').addEventListener('click', function() {
-    const wrapper = document.getElementById('rows-wrapper');
-    if (!wrapper) return;
-    const rows = wrapper.querySelectorAll('.rule-row');
+    profileRulesRAM[currentMappingField] = {}; // Limpiamos estado previo
     
-    profileRulesRAM[currentMappingField] = {}; // Purgar estado anterior
-
-    rows.forEach(row => {
-        const key = row.querySelector('.rule-key').value.trim();
-        const out = row.querySelector('.rule-out').value.trim();
-        const sec = row.querySelector('.rule-secondary') ? row.querySelector('.rule-secondary').value.trim() : "";
-        
-        if (key !== "") {
-            profileRulesRAM[currentMappingField][key] = { out: out, secondary: sec };
+    if (currentMappingType === 'boolean-mapping') {
+        // Guardamos la cadena tal cual, sin procesar. El PHP se encargará del split(',')
+        const triggers = document.getElementById('boolean-triggers-input').value.trim();
+        if (triggers !== "") {
+            profileRulesRAM[currentMappingField] = { triggers: triggers };
         }
-    });
+    } else {
+        // Guardado estándar de filas
+        const wrapper = document.getElementById('rows-wrapper');
+        if (wrapper) {
+            wrapper.querySelectorAll('.rule-row').forEach(row => {
+                const key = row.querySelector('.rule-key').value.trim();
+                const out = row.querySelector('.rule-out').value.trim();
+                const sec = row.querySelector('.rule-secondary') ? row.querySelector('.rule-secondary').value.trim() : "";
+                if (key !== "") profileRulesRAM[currentMappingField][key] = { out: out, secondary: sec };
+            });
+        }
+    }
 
-    // Feedback visual en el panel: teñir el engranaje si el mapa tiene contenido
-    const targetSelect = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
-    if (targetSelect && Object.keys(profileRulesRAM[currentMappingField]).length > 0) {
-        const gearBtn = document.querySelector(`.map-trigger[data-field-name="${currentMappingField}"]`);
-        if (gearBtn) gearBtn.style.background = "#dcfce7"; // Verde suave
+    // Feedback visual (engranaje verde si hay algo configurado)
+    const gearBtn = document.querySelector(`.map-trigger[data-field-name="${currentMappingField}"]`);
+    if (gearBtn) {
+        const hasData = Object.keys(profileRulesRAM[currentMappingField]).length > 0;
+        gearBtn.style.background = hasData ? "#dcfce7" : "#f1f5f9";
     }
 
     closeModal();
-    if (typeof updateUIState === 'function') updateUIState(); // Refrescar alertas en el frontal
+    if (typeof updateUIState === 'function') updateUIState(); 
 });
+
 
 </script>
 </body>
