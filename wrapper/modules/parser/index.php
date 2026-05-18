@@ -55,79 +55,102 @@ require_once __DIR__ . '/../../core/auth_checker.php';
             display: none;
         }
 
-        /* Mesa de Trabajo / Previsualización (Paso 2) */
+	/* Mesa de Trabajo / Previsualización (Paso 2) */
         .table-container {
-            overflow-x: auto;
-            max-height: 600px;
+	    flex-grow: 1; /* Se estira para ocupar todo el espacio vertical disponible del panel */
+            min-height: 0;
+
+            /*max-height: 82vh;  */
+            /*overflow-y: auto;  */
+            /*overflow-x: auto;  */
+	    overflow: auto;
+
             border: 1px solid var(--border-color);
             border-radius: 6px;
             margin-top: 1rem;
+
+            /* Scrollbars elegantes */
+            scrollbar-width: thin; 
+            scrollbar-color: #94a3b8 #f1f5f9;
         }
+
         table {
             border-collapse: collapse;
             width: 100%;
             text-align: left;
             font-size: 0.9rem;
         }
-	#csv-table thead th {
-	    position: sticky !important;
-	    top: 0 !important;
-	    z-index: 10 !important;
-	    background-color: #f8fafc !important; /* Tapa los datos al subir */
-	    box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05) !important;
-	}
-        th, td {
+
+        /* Cabecera unificada y pegajosa */
+        #csv-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #f8fafc;
+            box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05);
+            font-weight: 600;
             padding: 0.75rem 1rem;
             border-bottom: 1px solid var(--border-color);
             white-space: nowrap;
         }
-        th {
-            background-color: #f1f5f9;
-            position: sticky;
-            top: 0;
-            font-weight: 600;
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
         }
+
         tr:hover {
             background-color: #f8fafc;
         }
 
-	/* --- DISEÑO PANTALLA DIVIDIDA (MESA DE TRABAJO DEFINITIVA) --- */
-	#workspace {
-	    display: none; /* Se activa por JS al cargar el CSV */
-	    margin-top: 1.5rem;
-	}
-	.split-layout {
-	    display: grid;
-	    grid-template-columns: 1fr 460px; /* Izquierda fluido, Derecha fijo compacto */
-	    gap: 1.5rem;
-	    align-items: start;
-	}
+	/* --- DISEÑO PANTALLA DIVIDIDA --- */
+        #workspace {
+            display: none;
+            margin-top: 1.5rem;
+        }
 
-	/* Barra superior de persistencia (Independiente) */
-	.persistence-bar {
-	    grid-column: 1 / -1;
-	    background: #ffffff;
-	    border: 1px solid var(--border-color);
-	    padding: 1rem 1.5rem;
-	    border-radius: 8px;
+        .split-layout {
+            display: grid;
+            grid-template-columns: 1fr 460px;
+            gap: 1.5rem;
+            align-items: stretch;
+        }
+
+        /* Recuperamos la responsividad: Si la pantalla es pequeña, apilamos los paneles */
+        @media (max-width: 1100px) {
+            .split-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .persistence-bar {
+            grid-column: 1 / -1;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+        }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* ¡LA LÍNEA MÁGICA QUE QUITA EL SCROLL GLOBAL! */
+        .left-panel {
+            min-width: 0;
 	    display: flex;
-	    justify-content: space-between;
-	    align-items: center;
-	    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-	    margin-bottom: 1rem;
-	}
-
-	/* Paneles Izquierdo y Derecho */
-	.panel {
-	    background: #ffffff;
-	    border: 1px solid var(--border-color);
-	    border-radius: 8px;
-	    padding: 1.25rem;
-	    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-	}
-	.left-panel {
-	    overflow-x: auto;
-	}
+            flex-direction: column;
+        }
 
 	/* Sub-formularios compactos Ianseo [Etiqueta + Rueda + Desplegable] */
 	.ianseo-fieldset {
@@ -214,31 +237,33 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 	}
 
 	/* --- FORZAR SCROLLBARS PERSISTENTES EN LA TABLA --- */
-	.left-panel .table-container {
-	    max-height: 82vh; /* Ocupará el 82% de la altura de tu pantalla */
-	    overflow-y: auto; /* Activa el scroll vertical interno */
-	    scrollbar-width: thin; /* Para Firefox */
-	    scrollbar-color: #94a3b8 #f1f5f9;
-	}
-	/* Para Chrome, Safari, Edge */
-	.left-panel .table-container::-webkit-scrollbar {
-	    height: 12px; /* Scroll horizontal bien visible */
-	    width: 12px;  /* Scroll vertical */
-	    display: block; /* Anula el autohide fantasma */
-	}
-	.left-panel .table-container::-webkit-scrollbar-track {
-	    background: #f1f5f9;
-	    border-radius: 0 0 6px 6px;
-	}
-	.left-panel .table-container::-webkit-scrollbar-thumb {
-	    background-color: #94a3b8;
-	    border-radius: 6px;
-	    border: 2px solid #f1f5f9;
-	}
-	.left-panel .table-container::-webkit-scrollbar-thumb:hover {
-	    background-color: #64748b;
-	}
+        .table-container {
+            flex-grow: 1; /* Ocupa todo el espacio vertical disponible */
+            min-height: 0; /* Vital para que el scroll funcione en Flexbox */
 
+            overflow: auto; /* Activa el scroll interno */
+            scrollbar-width: thin; /* Para Firefox */
+            scrollbar-color: #94a3b8 #f1f5f9;
+        }
+
+        /* Para Chrome, Safari, Edge */
+        .table-container::-webkit-scrollbar {
+            height: 12px;
+            width: 12px;
+            display: block;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 0 0 6px 6px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background-color: #94a3b8;
+            border-radius: 6px;
+            border: 2px solid #f1f5f9;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background-color: #64748b;
+        }
 	/* --- ALERTAS VISUALES (UX) --- */
 	/* Desplegables obligatorios pendientes de mapear */
 	.required-pending {
