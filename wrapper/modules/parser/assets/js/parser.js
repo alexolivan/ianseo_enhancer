@@ -451,3 +451,54 @@ document.getElementById('btn-save-map').addEventListener('click', function() {
     closeModal();
     if (typeof updateUIState === 'function') updateUIState();
 });
+
+
+// ============================================================================
+// --- CONTROLADORES DE CONTEXTO DEL EVENTO (FECHA Y CABECERAS) ---
+// ============================================================================
+// 1. Escuchar cambios en el selector de filas a saltar
+document.getElementById('skip-rows').addEventListener('input', function() {
+    let skipCount = parseInt(this.value) || 0;
+    if (skipCount < 0) {
+        this.value = 0;
+        skipCount = 0;
+    }
+
+    const tbody = document.querySelector('#csv-table tbody');
+    // QUITAMOS el 'window.' que estaba matando el proceso
+    if (!tbody || !rawDataRows || rawDataRows.length === 0) return; 
+
+    tbody.innerHTML = ''; // Limpiamos la tabla actual
+
+    // Iteramos desde la fila indicada por el usuario hasta el final
+    for (let i = skipCount; i < rawDataRows.length; i++) {
+        const row = rawDataRows[i];
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `<td style="text-align: center; color: #94a3b8; font-weight: 600; background: #f8fafc;">${i + 1}</td>`;
+
+        row.forEach(cellData => {
+            const td = document.createElement('td');
+            // Sanitizamos igual que en la carga inicial
+            td.innerHTML = cellData.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    }
+
+    // Forzamos un repintado de los colores para que los verdes/naranjas se mantengan
+    if (typeof updateUIState === 'function') updateUIState();
+});
+
+// 2. Pre-rellenar la fecha del torneo con la fecha de hoy al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    const dateInput = document.getElementById('event-date');
+    if (dateInput) {
+        // Obtenemos la fecha local en formato YYYY-MM-DD
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+});
