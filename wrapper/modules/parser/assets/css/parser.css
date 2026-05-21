@@ -273,3 +273,166 @@ display: flex;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px #eff6ff;
 }
+
+/* --- CLASE CSS COMPONENTES DE VALIDACIÓN DE EDAD Y MODAL --- */
+
+/* Estilos de obligatoriedad dinámica para inputs generales */
+.required-pending {
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Fila de colapso para configuraciones de edad en la Clase */
+.class-age-config-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 0.75rem 1rem;
+    margin-top: -8px;
+    margin-bottom: 12px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Doble Slider de Rango (Pure HTML/CSS/JS) */
+.double-slider-wrapper {
+    margin: 1.25rem 0;
+}
+.double-slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 0.4rem;
+}
+.double-slider-container {
+    position: relative;
+    width: 100%;
+    height: 24px;
+}
+.slider-track-bg {
+    position: absolute;
+    width: 100%;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+.slider-track-active {
+    position: absolute;
+    height: 6px;
+    border-radius: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+/* Variables de color temático */
+.slider-emerald .slider-track-active {
+    background: #10b981;
+}
+.slider-violet .slider-track-active {
+    background: #8b5cf6;
+}
+
+/* Inputs deslizantes superpuestos de rango */
+.double-slider-container input[type="range"] {
+    position: absolute;
+    width: 100%;
+    height: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    pointer-events: none;
+    z-index: 3;
+    margin: 0;
+    padding: 0;
+    border: none;
+    -webkit-appearance: none;
+}
+
+/* Estilo para los tiradores (WebKit/Blink) */
+.double-slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid var(--primary);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    transition: transform 0.1s ease;
+}
+.slider-emerald input[type="range"]::-webkit-slider-thumb {
+    border-color: #10b981;
+}
+.slider-violet input[type="range"]::-webkit-slider-thumb {
+    border-color: #8b5cf6;
+}
+.double-slider-container input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Estilo para los tiradores (Firefox) */
+.double-slider-container input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid var(--primary);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    transition: transform 0.1s ease;
+}
+.slider-emerald input[type="range"]::-moz-range-thumb {
+    border-color: #10b981;
+}
+.slider-violet input[type="range"]::-moz-range-thumb {
+    border-color: #8b5cf6;
+}
+.double-slider-container input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Banner de alerta de auditoría (Gaps & Overlaps) */
+.audit-alert-banner {
+    background-color: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #ea580c;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.8rem;
+    color: #c2410c;
+    line-height: 1.4;
+    animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Celdas con error de validación de edad */
+.cell-error-class {
+    background-color: #fee2e2 !important;
+    color: #b91c1c !important;
+    font-weight: 600;
+    cursor: help;
+    border: 1.5px solid #fca5a5 !important;
+    position: relative;
+}
+

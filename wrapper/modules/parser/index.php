@@ -103,13 +103,20 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                         </select>
                     </div>
 
-                    <div class="control-row">
+                    <div class="control-row" style="border-bottom: none; padding-bottom: 0;">
                         <span class="control-label" title="Campo 4: Clase / Edad">4. Clase *</span>
                         <button class="btn-gear map-trigger" data-field-index="4" data-field-name="Class" title="Configurar diccionario">⚙️</button>
                         <select class="column-select target-field" data-field-index="4" data-field-name="Class" data-type="mapping" data-required="true" disabled>
                             <option value="">-- Ignorar --</option>
                         </select>
                     </div>
+                    <div class="age-validation-toggle-row" style="margin-left: 2rem; margin-top: 0.15rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                        <input type="checkbox" id="class-age-validation-toggle" style="width: auto; cursor: pointer; margin: 0;">
+                        <label for="class-age-validation-toggle" style="font-size: 0.75rem; color: #475569; cursor: pointer; user-select: none; font-weight: 600;">
+                            ⚡ Activar validación por edad (requiere Campo 16)
+                        </label>
+                    </div>
+
 
                     <div style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Arquero/a</div>
 
