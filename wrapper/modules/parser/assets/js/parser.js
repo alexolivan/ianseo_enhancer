@@ -30,6 +30,9 @@ let profileRulesRAM = {
     Affil1: {}, Affil2: {}, Affil3: {}
 };
 let ageValidationEnabled = false;
+let startRow = 2;
+let endRow = 2;
+let previewModeShowAll = false;
 
 
 function processFile(file) {
@@ -50,6 +53,62 @@ function processFile(file) {
     reader.readAsText(file);
 }
 
+function renderCSVTable() {
+    const thead = document.querySelector('#csv-table thead');
+    const tbody = document.querySelector('#csv-table tbody');
+    if (!thead || !tbody || !rawDataRows || rawDataRows.length === 0) return;
+
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    // Render columns in header
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = `
+        <th class="col-abs-index text-center" style="width: 45px;">#</th>
+        <th class="col-rel-index text-center" style="width: 65px; color: var(--primary);">Traductor</th>
+    `;
+    currentHeaders.forEach((h, idx) => {
+        headerRow.innerHTML += `<th>${h || `Col ${idx}`}</th>`;
+    });
+    thead.appendChild(headerRow);
+
+    // Render data rows
+    let translatorIndex = 1;
+    rawDataRows.forEach((rowData, rowIndex) => {
+        const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
+        const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
+
+        if (!isSelected && !previewModeShowAll) {
+            // If not selected and we show only selected, skip rendering entirely
+            return;
+        }
+
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-row-index', rowIndex);
+        if (!isSelected) {
+            tr.classList.add('row-selected-shading');
+        }
+
+        // Absolute index
+        tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
+        // Relative translator index
+        if (isSelected) {
+            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
+        } else {
+            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
+        }
+
+        rowData.forEach(cell => {
+            const safeCell = cell ? cell.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+            tr.innerHTML += `<td>${safeCell}</td>`;
+        });
+        tbody.appendChild(tr);
+    });
+
+    // Refresh colors and highlights
+    if (typeof updateUIState === 'function') updateUIState();
+}
+
 function renderRawCSV(csvText, fileName) {
     const firstLine = csvText.slice(0, csvText.indexOf('\n'));
     const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
@@ -60,35 +119,35 @@ function renderRawCSV(csvText, fileName) {
     // Guardamos estado global en RAM
     currentHeaders = parseCSVLine(lines[0], delimiter);
     rawDataRows = [];
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
         rawDataRows.push(parseCSVLine(lines[i], delimiter));
+    }
+
+    // Inicializar límites de Fila Inicial y Final
+    startRow = 2; // Por defecto asumiendo que 1 es cabecera
+    if (rawDataRows.length < 2) {
+        startRow = 1; // Si tiene una sola fila
+    }
+    endRow = rawDataRows.length;
+
+    // Configurar los campos numéricos de la UI
+    const startInput = document.getElementById('start-row');
+    const endInput = document.getElementById('end-row');
+    if (startInput) {
+        startInput.value = startRow;
+        startInput.max = rawDataRows.length;
+    }
+    if (endInput) {
+        endInput.value = endRow;
+        endInput.max = rawDataRows.length;
     }
 
     // Pintar información técnica
     document.getElementById('file-info').innerHTML = 
         `📁 <strong>${fileName}</strong> | Filas: <strong>${rawDataRows.length}</strong> | Delimitador: <strong>"${delimiter}"</strong>`;
 
-    // 1. Pintar tabla cruda izquierda
-    const thead = document.querySelector('#csv-table thead');
-    const tbody = document.querySelector('#csv-table tbody');
-    thead.innerHTML = ''; tbody.innerHTML = '';
-
-    const headerRow = document.createElement('tr');
-    headerRow.innerHTML = `<th style="width: 40px; text-align: center;">#</th>`;
-    currentHeaders.forEach((h, idx) => {
-        headerRow.innerHTML += `<th>${h || `Col ${idx}`}</th>`;
-    });
-    thead.appendChild(headerRow);
-
-    rawDataRows.forEach((rowData, rowIndex) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td style="text-align: center; color: #94a3b8; font-weight: 600; background: #f8fafc;">${rowIndex + 1}</td>`;
-        rowData.forEach(cell => {
-            const safeCell = cell.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            tr.innerHTML += `<td>${safeCell}</td>`;
-        });
-        tbody.appendChild(tr);
-    });
+    // Render table
+    renderCSVTable();
 
     // 2. POBLAR DESPLEGABLES IANSEO (¡Aquí ocurre la magia de la conexión!)
     populateIanseoTargets();
@@ -192,14 +251,14 @@ function updateUIState() {
 
     // 1. RESETEO TOTAL: Limpiar cabeceras, celdas y botones
     currentHeaders.forEach((headerText, idx) => {
-        const th = ths[idx + 1];
+        const th = ths[idx + 2];
         if (th) {
             th.innerHTML = headerText || `Col ${idx}`;
             th.classList.remove('th-assigned');
         }
         // Limpiamos colores de todas las celdas de esta columna
         rows.forEach(row => {
-            const td = row.querySelectorAll('td')[idx + 1];
+            const td = row.querySelectorAll('td')[idx + 2];
             if (td) {
                 td.style.backgroundColor = '';
                 td.removeAttribute('title');
@@ -253,7 +312,7 @@ function updateUIState() {
 
         // Si hay una columna asignada, procesamos la tabla cruda
         if (colIdx !== "") {
-            const targetCol = parseInt(colIdx) + 1;
+            const targetCol = parseInt(colIdx) + 2;
             const th = ths[targetCol];
 
             // Pintar Cabecera
@@ -266,7 +325,7 @@ function updateUIState() {
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
             rawDataRows.forEach((rowData, rowIndex) => {
-                const htmlRow = rows[rowIndex];
+                const htmlRow = tbody.querySelector(`tr[data-row-index="${rowIndex}"]`);
                 if (!htmlRow) return;
 
                 const cellValue = rowData[colIdx] ? rowData[colIdx].trim() : '';
@@ -306,15 +365,15 @@ function updateUIState() {
 
         if (classCol !== "" && dobCol !== "") {
             rawDataRows.forEach((rowData, rowIndex) => {
-                const htmlRow = rows[rowIndex];
+                const htmlRow = tbody.querySelector(`tr[data-row-index="${rowIndex}"]`);
                 if (!htmlRow) return;
 
                 const rawDob = rowData[dobCol] ? rowData[dobCol].trim() : '';
                 const rawClass = rowData[classCol] ? rowData[classCol].trim() : '';
                 const rawGender = genderCol !== "" && rowData[genderCol] ? rowData[genderCol].trim() : '';
 
-                const tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 1];
-                const tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 1];
+                const tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 2];
+                const tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 2];
 
                 if (!tdClass) return;
 
@@ -534,6 +593,12 @@ function createDoubleSliderHTML(idPrefix, label, minVal, maxVal, isEmerald) {
                 <input type="range" class="range-min" id="${idPrefix}-min" min="0" max="99" value="${minVal}">
                 <input type="range" class="range-max" id="${idPrefix}-max" min="0" max="99" value="${maxVal}">
             </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.4rem; align-items: center;">
+                <span style="font-size: 0.75rem; color: #64748b;">Ajuste manual:</span>
+                <input type="number" class="slider-num-min" id="${idPrefix}-min-num" min="0" max="99" value="${minVal}" style="width: 50px; font-size: 0.8rem; padding: 0.15rem 0.3rem; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; outline: none;">
+                <span style="font-size: 0.75rem; color: #94a3b8;">a</span>
+                <input type="number" class="slider-num-max" id="${idPrefix}-max-num" min="0" max="99" value="${maxVal}" style="width: 50px; font-size: 0.8rem; padding: 0.15rem 0.3rem; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; outline: none;">
+            </div>
         </div>
     `;
 }
@@ -541,14 +606,16 @@ function createDoubleSliderHTML(idPrefix, label, minVal, maxVal, isEmerald) {
 function initializeDoubleSlider(idPrefix, onChangeCallback) {
     const rangeMin = document.getElementById(`${idPrefix}-min`);
     const rangeMax = document.getElementById(`${idPrefix}-max`);
+    const numMin = document.getElementById(`${idPrefix}-min-num`);
+    const numMax = document.getElementById(`${idPrefix}-max-num`);
     const trackActive = document.getElementById(`${idPrefix}-track-active`);
     const valueDisplay = document.getElementById(`${idPrefix}-value-display`);
 
     if (!rangeMin || !rangeMax || !trackActive || !valueDisplay) return;
 
     function updateSlider() {
-        let valMin = parseInt(rangeMin.value);
-        let valMax = parseInt(rangeMax.value);
+        let valMin = parseInt(rangeMin.value) || 0;
+        let valMax = parseInt(rangeMax.value) || 0;
 
         // Forzar restricción de cruce
         if (valMin > valMax) {
@@ -571,11 +638,45 @@ function initializeDoubleSlider(idPrefix, onChangeCallback) {
         // Actualizar texto
         valueDisplay.innerHTML = `<strong>${valMin} - ${valMax} años</strong>`;
 
+        // Sincronizar inputs numéricos si existen
+        if (numMin && numMin !== document.activeElement) numMin.value = valMin;
+        if (numMax && numMax !== document.activeElement) numMax.value = valMax;
+
         if (onChangeCallback) onChangeCallback();
+    }
+
+    function handleNumInput() {
+        let valMin = parseInt(numMin.value) || 0;
+        let valMax = parseInt(numMax.value) || 0;
+
+        // Limitar entre 0 y 99
+        if (valMin < 0) valMin = 0; if (valMin > 99) valMin = 99;
+        if (valMax < 0) valMax = 0; if (valMax > 99) valMax = 99;
+
+        // Si se cruzan, forzar
+        if (valMin > valMax) {
+            if (this === numMin) {
+                valMin = valMax;
+            } else {
+                valMax = valMin;
+            }
+        }
+
+        rangeMin.value = valMin;
+        rangeMax.value = valMax;
+
+        updateSlider();
     }
 
     rangeMin.addEventListener('input', updateSlider);
     rangeMax.addEventListener('input', updateSlider);
+
+    if (numMin && numMax) {
+        numMin.addEventListener('input', handleNumInput);
+        numMin.addEventListener('change', handleNumInput);
+        numMax.addEventListener('input', handleNumInput);
+        numMax.addEventListener('change', handleNumInput);
+    }
 
     // Disparar inicialmente para posicionar el track
     updateSlider();
@@ -906,51 +1007,78 @@ document.getElementById('btn-save-map').addEventListener('click', function() {
 // ============================================================================
 // --- CONTROLADORES DE CONTEXTO DEL EVENTO (FECHA Y CABECERAS) ---
 // ============================================================================
-// 1. Escuchar cambios en el selector de filas a saltar
-document.getElementById('skip-rows').addEventListener('input', function() {
-    let skipCount = parseInt(this.value) || 0;
-    if (skipCount < 0) {
-        this.value = 0;
-        skipCount = 0;
-    }
 
-    const tbody = document.querySelector('#csv-table tbody');
-    // QUITAMOS el 'window.' que estaba matando el proceso
-    if (!tbody || !rawDataRows || rawDataRows.length === 0) return; 
+// 1. Escuchar cambios en los selectores de rango de filas
+const startRowInput = document.getElementById('start-row');
+if (startRowInput) {
+    startRowInput.addEventListener('change', function() {
+        let val = parseInt(this.value) || 1;
+        if (val < 1) val = 1;
+        if (rawDataRows.length && val > rawDataRows.length) val = rawDataRows.length;
+        this.value = val;
+        startRow = val;
 
-    tbody.innerHTML = ''; // Limpiamos la tabla actual
+        if (startRow > endRow) {
+            endRow = startRow;
+            const endInput = document.getElementById('end-row');
+            if (endInput) endInput.value = endRow;
+        }
+        renderCSVTable();
+    });
+    startRowInput.addEventListener('input', function() {
+        let val = parseInt(this.value);
+        if (!isNaN(val) && val >= 1 && (!rawDataRows.length || val <= rawDataRows.length)) {
+            startRow = val;
+            if (startRow > endRow) {
+                endRow = startRow;
+                const endInput = document.getElementById('end-row');
+                if (endInput) endInput.value = endRow;
+            }
+            renderCSVTable();
+        }
+    });
+}
 
-    // Iteramos desde la fila indicada por el usuario hasta el final
-    for (let i = skipCount; i < rawDataRows.length; i++) {
-        const row = rawDataRows[i];
-        const tr = document.createElement('tr');
+const endRowInput = document.getElementById('end-row');
+if (endRowInput) {
+    endRowInput.addEventListener('change', function() {
+        let val = parseInt(this.value) || 1;
+        if (val < 1) val = 1;
+        if (rawDataRows.length && val > rawDataRows.length) val = rawDataRows.length;
+        this.value = val;
+        endRow = val;
 
-        tr.innerHTML = `<td style="text-align: center; color: #94a3b8; font-weight: 600; background: #f8fafc;">${i + 1}</td>`;
+        if (endRow < startRow) {
+            startRow = endRow;
+            const startInput = document.getElementById('start-row');
+            if (startInput) startInput.value = startRow;
+        }
+        renderCSVTable();
+    });
+    endRowInput.addEventListener('input', function() {
+        let val = parseInt(this.value);
+        if (!isNaN(val) && val >= 1 && (!rawDataRows.length || val <= rawDataRows.length)) {
+            endRow = val;
+            if (endRow < startRow) {
+                startRow = endRow;
+                const startInput = document.getElementById('start-row');
+                if (startInput) startInput.value = startRow;
+            }
+            renderCSVTable();
+        }
+    });
+}
 
-        row.forEach(cellData => {
-            const td = document.createElement('td');
-            // Sanitizamos igual que en la carga inicial
-            td.innerHTML = cellData.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-    }
-
-    // Forzamos un repintado de los colores para que los verdes/naranjas se mantengan
-    if (typeof updateUIState === 'function') updateUIState();
-});
+const previewModeToggle = document.getElementById('preview-mode-toggle');
+if (previewModeToggle) {
+    previewModeToggle.addEventListener('change', function() {
+        previewModeShowAll = this.checked;
+        renderCSVTable();
+    });
+}
 
 // 2. Pre-rellenar la fecha del torneo con la fecha de hoy al cargar la página e inicializar listeners
 document.addEventListener('DOMContentLoaded', () => {
-    const dateInput = document.getElementById('event-date');
-    if (dateInput) {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        dateInput.value = `${yyyy}-${mm}-${dd}`;
-    }
-
     // 3. Listener del toggle de validación por edad
     const ageToggle = document.getElementById('class-age-validation-toggle');
     if (ageToggle) {
@@ -967,6 +1095,203 @@ document.addEventListener('DOMContentLoaded', () => {
     if (eventDateInput) {
         eventDateInput.addEventListener('change', function() {
             if (typeof updateUIState === 'function') updateUIState();
+        });
+        eventDateInput.addEventListener('input', function() {
+            if (typeof updateUIState === 'function') updateUIState();
+        });
+    }
+
+    // 5. Listener de exportación
+    const btnExport = document.getElementById('btn-export');
+    if (btnExport) {
+        btnExport.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (this.disabled) return;
+
+            // Verificar si el rango es válido
+            if (startRow > endRow || startRow < 1 || endRow > rawDataRows.length) {
+                alert('El rango de filas seleccionado no es válido.');
+                return;
+            }
+
+            // Si hay validación de edad activa, la fecha de torneo es estrictamente requerida
+            if (ageValidationEnabled) {
+                const dateInput = document.getElementById('event-date');
+                if (!dateInput || !dateInput.value) {
+                    alert('Error: La fecha del torneo es obligatoria para la validación por edad de las clases.');
+                    return;
+                }
+            }
+
+            // Compilar los datos del CSV
+            const outputLines = [];
+
+            // Obtener mapeadores de columnas
+            const getSelectedColIdx = (fieldName) => {
+                const select = document.querySelector(`.target-field[data-field-name="${fieldName}"]`);
+                if (select && select.value !== "") {
+                    return parseInt(select.value);
+                }
+                return -1;
+            };
+
+            // Recorrer las filas dentro del rango [startRow, endRow]
+            for (let i = startRow - 1; i <= endRow - 1; i++) {
+                const rowData = rawDataRows[i];
+                if (!rowData) continue;
+
+                const exportCols = [];
+
+                // 1. Bib
+                let colIdx = getSelectedColIdx("Bib");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 2. Session
+                colIdx = getSelectedColIdx("Session");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Session[raw] && profileRulesRAM.Session[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 3. Division
+                colIdx = getSelectedColIdx("Division");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Division[raw] && profileRulesRAM.Division[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 4. Class
+                colIdx = getSelectedColIdx("Class");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Class[raw] && profileRulesRAM.Class[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 5. Target
+                colIdx = getSelectedColIdx("Target");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // Helper para mapear booleanos
+                const getBoolVal = (fieldName) => {
+                    const idx = getSelectedColIdx(fieldName);
+                    if (idx !== -1) {
+                        const raw = rowData[idx];
+                        const triggers = profileRulesRAM[fieldName] && profileRulesRAM[fieldName].triggers;
+                        if (triggers) {
+                            const triggerList = triggers.split(',').map(t => t.trim().toLowerCase());
+                            return triggerList.includes(raw.trim().toLowerCase()) ? "1" : "0";
+                        }
+                        return "0";
+                    }
+                    return "";
+                };
+
+                // 6. IndDivClass
+                exportCols.push(getBoolVal("IndDivClass"));
+                // 7. TeamDivClass
+                exportCols.push(getBoolVal("TeamDivClass"));
+                // 8. IndEvents
+                exportCols.push(getBoolVal("IndEvents"));
+                // 9. TeamEvents
+                exportCols.push(getBoolVal("TeamEvents"));
+                // 10. MixedEvents
+                exportCols.push(getBoolVal("MixedEvents"));
+
+                // 11. LastName
+                colIdx = getSelectedColIdx("LastName");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 12. Name
+                colIdx = getSelectedColIdx("Name");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 13. Gender
+                colIdx = getSelectedColIdx("Gender");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Gender[raw] && profileRulesRAM.Gender[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 14. Affil1Code
+                colIdx = getSelectedColIdx("Affil1Code");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Affil1[raw] && profileRulesRAM.Affil1[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 15. Affil1Name
+                colIdx = getSelectedColIdx("Affil1Name");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 16. DOB
+                colIdx = getSelectedColIdx("DOB");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 17. Subclass
+                colIdx = getSelectedColIdx("Subclass");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 18. Affil2Code
+                colIdx = getSelectedColIdx("Affil2Code");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Affil2[raw] && profileRulesRAM.Affil2[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 19. Affil2Name
+                colIdx = getSelectedColIdx("Affil2Name");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // 20. Affil3Code
+                colIdx = getSelectedColIdx("Affil3Code");
+                if (colIdx !== -1) {
+                    const raw = rowData[colIdx];
+                    exportCols.push((profileRulesRAM.Affil3[raw] && profileRulesRAM.Affil3[raw].out) || raw || "");
+                } else {
+                    exportCols.push("");
+                }
+
+                // 21. Affil3Name
+                colIdx = getSelectedColIdx("Affil3Name");
+                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+
+                // Escapar todas las celdas y unir con ";"
+                const escapedLine = exportCols.map(val => {
+                    if (val === null || val === undefined) return "";
+                    let s = String(val);
+                    if (s.includes('"') || s.includes(';') || s.includes('\n') || s.includes('\r')) {
+                        s = s.replace(/"/g, '""');
+                        return `"${s}"`;
+                    }
+                    return s;
+                }).join(';');
+
+                outputLines.push(escapedLine);
+            }
+
+            // Crear Blob y forzar descarga
+            const csvBlobContent = outputLines.join('\r\n');
+            const blob = new Blob([csvBlobContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "traduccion_ianseo.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
     }
 });

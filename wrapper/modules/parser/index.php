@@ -55,14 +55,22 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                 <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #64748b; text-transform: uppercase; font-weight: 600;">
                     Previsualización del origen (As is)
                 </div>
-		<div id="event-context-bar" style="display: flex; gap: 1.5rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+		<div id="event-context-bar" style="display: flex; gap: 1.5rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); flex-wrap: wrap;">
         	    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <label for="event-date" style="font-size: 0.85rem; font-weight: 600; color: #475569;">📅 Fecha del Torneo:</label>
+                        <label for="event-date" style="font-size: 0.85rem; font-weight: 600; color: #475569;">📅 Fecha Torneo:</label>
                         <input type="date" id="event-date" style="padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem; outline: none; border-left: 3px solid var(--primary);">
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <label for="skip-rows" style="font-size: 0.85rem; font-weight: 600; color: #475569;">⏭️ Ignorar cabeceras (filas):</label>
-                        <input type="number" id="skip-rows" min="0" max="10" value="0" style="padding: 0.35rem; border: 1px solid #cbd5e1; border-radius: 4px; width: 60px; font-size: 0.85rem; outline: none; text-align: center;">
+                        <label for="start-row" style="font-size: 0.85rem; font-weight: 600; color: #475569;">🔢 Fila Inicial:</label>
+                        <input type="number" id="start-row" min="1" value="2" style="padding: 0.35rem; border: 1px solid #cbd5e1; border-radius: 4px; width: 60px; font-size: 0.85rem; outline: none; text-align: center;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <label for="end-row" style="font-size: 0.85rem; font-weight: 600; color: #475569;">🏁 Fila Final:</label>
+                        <input type="number" id="end-row" min="1" value="2" style="padding: 0.35rem; border: 1px solid #cbd5e1; border-radius: 4px; width: 70px; font-size: 0.85rem; outline: none; text-align: center;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
+                        <input type="checkbox" id="preview-mode-toggle" style="width: auto; cursor: pointer; margin: 0;">
+                        <label for="preview-mode-toggle" style="font-size: 0.85rem; font-weight: 600; color: #475569; cursor: pointer; user-select: none;">👁️ Mostrar todo (sombreado)</label>
                     </div>
             	</div>
                 <div class="table-container" style="margin-top: 0;">
