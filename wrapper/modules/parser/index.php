@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../core/auth_checker.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Importador y Parser CSV - Ianseo Enhancer</title>
-    <link rel="stylesheet" href="assets/css/parser.css">
+    <link rel="stylesheet" href="assets/css/parser.css?v=<?= filemtime(__DIR__ . '/assets/css/parser.css') ?>">
 </head>
 <body>
 
