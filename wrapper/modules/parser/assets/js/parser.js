@@ -156,6 +156,16 @@ function renderRawCSV(csvText, fileName) {
         rawDataRows.push(parseCSVLine(lines[i], delimiter));
     }
 
+    // Normalizar filas para que todas tengan exactamente el número máximo de columnas detectado
+    if (rawDataRows.length > 0) {
+        const maxCols = Math.max(...rawDataRows.map(row => row.length));
+        for (let i = 0; i < rawDataRows.length; i++) {
+            while (rawDataRows[i].length < maxCols) {
+                rawDataRows[i].push("");
+            }
+        }
+    }
+
     // Inicializar límites de Fila Inicial y Final
     startRow = 2; // Por defecto asumiendo que 1 es cabecera
     if (rawDataRows.length < 2) {
