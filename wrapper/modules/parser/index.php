@@ -97,10 +97,13 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 
                     <div class="control-row">
                         <span class="control-label" title="Campo 2: Turno de tiro">2. Sesión *</span>
-                        <button class="btn-gear map-trigger" data-field-index="2" data-field-name="Session" title="Mapear turnos a enteros (1, 2...)">⚙️</button>
-                        <select class="column-select target-field" data-field-index="2" data-field-name="Session" data-type="mapping" data-required="true" disabled>
-                            <option value="">-- Ignorar --</option>
-                        </select>
+                        <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                            <button class="btn-gear map-trigger" data-field-index="2" data-field-name="Session" title="Mapear turnos a enteros (1, 2...)">⚙️</button>
+                            <select class="column-select target-field" data-field-index="2" data-field-name="Session" data-type="mapping" data-required="true" disabled style="flex: 1; min-width: 0;">
+                                <option value="">-- Ignorar / Fijo --</option>
+                            </select>
+                            <input type="number" id="session-fixed-value" min="1" step="1" placeholder="Fijo (ej: 1)" style="width: 90px; padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem; outline: none; border-left: 3px solid var(--primary); display: none;" title="Introducir número de sesión fija">
+                        </div>
                     </div>
 
                     <div class="control-row">

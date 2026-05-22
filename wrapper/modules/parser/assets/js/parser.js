@@ -67,9 +67,10 @@ function renderCSVTable() {
         <th class="col-abs-index text-center" style="width: 45px;">#</th>
         <th class="col-rel-index text-center" style="width: 65px; color: var(--primary);">Traductor</th>
     `;
-    currentHeaders.forEach((h, idx) => {
-        headerRow.innerHTML += `<th>${h || `Col ${idx}`}</th>`;
-    });
+    const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+    for (let idx = 0; idx < numCols; idx++) {
+        headerRow.innerHTML += `<th>Columna ${idx + 1}</th>`;
+    }
     thead.appendChild(headerRow);
 
     // Render data rows
@@ -105,8 +106,40 @@ function renderCSVTable() {
         tbody.appendChild(tr);
     });
 
+    // Actualizar dinámicamente los textos descriptivos de los desplegables basados en el rango
+    updateIanseoTargetsDropdowns();
+
     // Refresh colors and highlights
     if (typeof updateUIState === 'function') updateUIState();
+}
+
+function updateIanseoTargetsDropdowns() {
+    const targetSelects = document.querySelectorAll('.target-field');
+    const firstAvailableRow = rawDataRows && rawDataRows[startRow - 1] ? rawDataRows[startRow - 1] : null;
+
+    targetSelects.forEach(select => {
+        const currentVal = select.value;
+        const fieldName = select.getAttribute('data-field-name');
+
+        // Reconstruimos el contenido de manera dinámica
+        if (fieldName === "Session") {
+            select.innerHTML = '<option value="">-- Ignorar / Fijo --</option>';
+        } else {
+            select.innerHTML = '<option value="">-- Ignorar --</option>';
+        }
+
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            let cellText = "";
+            if (firstAvailableRow && firstAvailableRow[idx] !== undefined) {
+                cellText = firstAvailableRow[idx].trim();
+            }
+            const label = cellText ? `Columna ${idx + 1}: "${cellText}"` : `Columna ${idx + 1}`;
+            select.innerHTML += `<option value="${idx}">${label}</option>`;
+        }
+
+        select.value = currentVal;
+    });
 }
 
 function renderRawCSV(csvText, fileName) {
@@ -156,33 +189,21 @@ function renderRawCSV(csvText, fileName) {
 function populateIanseoTargets() {
     const targetSelects = document.querySelectorAll('.target-field');
 
+    // Primero actualizamos las opciones dinámicas de los dropdowns
+    updateIanseoTargetsDropdowns();
+
+    // Luego inicializamos el estado disabled/enabled
     targetSelects.forEach(select => {
-        // Reiniciamos opciones preservando la opción por defecto
-        select.innerHTML = '<option value="">-- Ignorar --</option>';
-
-        // Inyectamos las columnas detectadas en el CSV
-        currentHeaders.forEach((headerText, idx) => {
-            const label = headerText ? `Col ${idx}: ${headerText}` : `Col ${idx}`;
-            select.innerHTML += `<option value="${idx}">${label}</option>`;
-        });
-
-        // LÓGICA DE ESTADOS (Bottom-Up UX)
         const type = select.getAttribute('data-type');
-        const isAffiliation = select.classList.contains('affil-code');
+        if (type && (type.startsWith('passthrough') || type === 'mapping')) {
+            select.disabled = false;
+        }
 
-	// Busca esta parte en tu función y déjala así:
-	if (type && (type.startsWith('passthrough') || type === 'mapping')) {
-	    select.disabled = false; // Ahora todos están abiertos para poder elegir la columna antes de mapear
-	}
-
-        // Las afiliaciones se gestionan por su propia lógica de cascada (inicialmente bloqueamos 2 y 3)
         const moduleNum = select.getAttribute('data-module');
         if (moduleNum && moduleNum > 1) {
             select.disabled = true;
         } else if (moduleNum === "1") {
-            // La afiliación 1 arranca en modo passthrough por defecto, así que habilitamos
             select.disabled = false;
-            // El campo Nombre de la afiliación 1 también se habilita
             const nameSelect = document.querySelector('.target-field[data-field-name="Affil1Name"]');
             if (nameSelect) nameSelect.disabled = false;
         }
@@ -190,7 +211,6 @@ function populateIanseoTargets() {
 
     // 🚀 EL PRIMER DISPARO: Forzamos la evaluación visual inicial
     updateUIState();
-
 }
 
 function parseCSVLine(line, delimiter) {
@@ -250,10 +270,11 @@ function updateUIState() {
     const rows = tbody ? tbody.querySelectorAll('tr') : [];
 
     // 1. RESETEO TOTAL: Limpiar cabeceras, celdas y botones
-    currentHeaders.forEach((headerText, idx) => {
+    const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+    for (let idx = 0; idx < numCols; idx++) {
         const th = ths[idx + 2];
         if (th) {
-            th.innerHTML = headerText || `Col ${idx}`;
+            th.innerHTML = `Columna ${idx + 1}`;
             th.classList.remove('th-assigned');
         }
         // Limpiamos colores de todas las celdas de esta columna
@@ -265,7 +286,7 @@ function updateUIState() {
                 td.classList.remove('cell-error-class');
             }
         });
-    });
+    }
 
     let allRequiredAssigned = true;
     let hasAgeValidationError = false;
@@ -300,9 +321,40 @@ function updateUIState() {
         const fieldName = select.getAttribute('data-field-name');
         const fieldType = select.getAttribute('data-type');
 
-        // Control de Rojos en campos obligatorios
+        // Control de Rojos en campos obligatorios e integración de sesión fija
         if (isRequired) {
-            if (colIdx === "") {
+            let isPending = false;
+            if (fieldName === "Session") {
+                const sessionFixedInput = document.getElementById('session-fixed-value');
+                const sessionGear = document.querySelector('.btn-gear[data-field-name="Session"]');
+
+                if (colIdx === "") {
+                    // Mostrar input de sesión fija y deshabilitar engranaje
+                    if (sessionFixedInput) sessionFixedInput.style.display = 'block';
+                    if (sessionGear) sessionGear.disabled = true;
+
+                    const val = sessionFixedInput ? parseInt(sessionFixedInput.value) : 0;
+                    if (isNaN(val) || val < 1) {
+                        isPending = true;
+                        if (sessionFixedInput) sessionFixedInput.classList.add('required-pending');
+                    } else {
+                        if (sessionFixedInput) sessionFixedInput.classList.remove('required-pending');
+                    }
+                } else {
+                    // Ocultar input de sesión fija y habilitar engranaje
+                    if (sessionFixedInput) {
+                        sessionFixedInput.style.display = 'none';
+                        sessionFixedInput.classList.remove('required-pending');
+                    }
+                    if (sessionGear) sessionGear.disabled = false;
+                }
+            } else {
+                if (colIdx === "") {
+                    isPending = true;
+                }
+            }
+
+            if (isPending) {
                 select.classList.add('required-pending');
                 allRequiredAssigned = false;
             } else {
@@ -570,8 +622,20 @@ document.getElementById('btn-autopopulate').addEventListener('click', function()
     const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
     if (!selector || selector.value === "") return;
     
-    const uniqueValues = [...new Set(rawDataRows.map(row => row[selector.value] ? row[selector.value].trim() : ''))].filter(v => v !== "");
+    // Solo tener en cuenta el rango de filas seleccionadas para la traducción
+    const rowsInRange = rawDataRows.slice(startRow - 1, endRow);
+    const uniqueValues = [...new Set(rowsInRange.map(row => row[selector.value] ? row[selector.value].trim() : ''))].filter(v => v !== "");
     const existingKeys = Array.from(document.querySelectorAll('#modal-rules-container .rule-key')).map(input => input.value.trim());
+
+    // Limpiar la fila de cortesía vacía si es la única y está en blanco
+    const allRuleKeys = document.querySelectorAll('#modal-rules-container .rule-key');
+    if (allRuleKeys.length === 1 && allRuleKeys[0].value.trim() === "") {
+        const wrapper = document.getElementById('rows-wrapper');
+        if (wrapper) {
+            wrapper.innerHTML = '';
+            rowCounter = 0;
+        }
+    }
 
     uniqueValues.forEach(val => {
         if (!existingKeys.includes(val)) appendRuleRow(val, "", "");
@@ -1101,6 +1165,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 4b. Listener del input de sesión fija para repintar y validar en tiempo real
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        sessionFixedInput.addEventListener('change', function() {
+            if (typeof updateUIState === 'function') updateUIState();
+        });
+        sessionFixedInput.addEventListener('input', function() {
+            if (typeof updateUIState === 'function') updateUIState();
+        });
+    }
+
     // 5. Listener de exportación
     const btnExport = document.getElementById('btn-export');
     if (btnExport) {
@@ -1152,7 +1227,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const raw = rowData[colIdx];
                     exportCols.push((profileRulesRAM.Session[raw] && profileRulesRAM.Session[raw].out) || raw || "");
                 } else {
-                    exportCols.push("");
+                    const fixedInput = document.getElementById('session-fixed-value');
+                    exportCols.push(fixedInput ? fixedInput.value : "");
                 }
 
                 // 3. Division
