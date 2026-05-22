@@ -13,7 +13,7 @@ body {
     padding: 2rem;
 }
 .container {
-    max-width: 1200px;
+    max-width: 98%;
     margin: 0 auto;
 }
 header {
@@ -63,7 +63,7 @@ table {
     border-collapse: collapse;
     width: 100%;
     text-align: left;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 /* Cabecera unificada y pegajosa */
@@ -74,13 +74,13 @@ table {
     background-color: #f8fafc;
     box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05);
     font-weight: 600;
-    padding: 0.75rem 1rem;
+    padding: 0.45rem 0.65rem;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
 
 td {
-    padding: 0.75rem 1rem;
+    padding: 0.4rem 0.65rem;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
