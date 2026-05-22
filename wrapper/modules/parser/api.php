@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../core/auth_checker.php';
 require_once __DIR__ . '/../../core/database/database.php';
+require_once __DIR__ . '/../../core/logger.php';
 
 // Cabecera JSON obligatoria
 header('Content-Type: application/json; charset=utf-8');
