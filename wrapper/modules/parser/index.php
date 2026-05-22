@@ -64,6 +64,11 @@ require_once __DIR__ . '/../../core/auth_checker.php';
             <div>
                 <span id="file-info" style="font-size: 0.9rem; font-weight: 600; color: #475569;"></span>
                 <span id="editor-badge" style="display: none; background: #e0f2fe; color: #0369a1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 700; margin-left: 0.5rem; border: 1px solid #bae6fd;">📝 MODO EDITOR DE FORMATO</span>
+                
+                <div id="editor-cols-wrapper" style="display: none; align-items: center; gap: 0.35rem; margin-left: 0.75rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #cbd5e1;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: #475569;">Columnas en plantilla:</span>
+                    <input type="number" id="editor-expected-cols" value="22" min="5" max="100" style="width: 55px; padding: 0.15rem 0.3rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-align: center;" />
+                </div>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <button id="btn-save-profile" style="background: #10b981; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
@@ -83,6 +88,9 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                 </button>
                 <button id="btn-exit-editor" style="background: #64748b; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: none;">
                     🚪 Salir
+                </button>
+                <button id="btn-close-csv" style="background: #64748b; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: none;">
+                    🚪 Cerrar Archivo
                 </button>
             </div>
         </div>

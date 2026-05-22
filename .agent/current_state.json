@@ -1,6 +1,8 @@
 {
-  "current_task": "Traductor CSV Ianseo (Fases 3 y 4 - CRUD de Formatos e Integración de Pantalla)",
-  "step_active": null,
-  "files_touching": [],
-  "status": "COMPLETED"
+  "current_task": "Traductor CSV Ianseo (Sugerencias UX: Columnas en Editor y Botón Cerrar Archivo)",
+  "step_active": "Tarea 9: Controles UI en index.php (expected cols input y cerrar archivo btn)",
+  "files_touching": [
+    "wrapper/modules/parser/index.php"
+  ],
+  "status": "IN_PROGRESS"
 }
