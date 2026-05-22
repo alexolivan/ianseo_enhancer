@@ -22,12 +22,39 @@ require_once __DIR__ . '/../../core/auth_checker.php';
         <p>Previsualización y normalización de inscripciones para Ianseo (Stateless RAM Parser)</p>
     </header>
 
+    <div class="top-controls-bar" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.02); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label for="format-select" style="font-size: 0.9rem; font-weight: 600; color: #475569;">📁 Plantilla Formato:</label>
+            <select id="format-select" class="column-select" style="width: 250px; margin: 0; padding: 0.35rem 0.5rem;">
+                <option value="">-- Sin plantilla (Empezar en blanco) --</option>
+            </select>
+            <button id="btn-edit-format" disabled style="background: #3b82f6; color: white; border: none; padding: 0.45rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: not-allowed; opacity: 0.6; display: flex; align-items: center; gap: 0.25rem; transition: all 0.2s;">
+                ✏️ Editar
+            </button>
+            <button id="btn-new-format" style="background: #10b981; color: white; border: none; padding: 0.45rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.25rem; transition: all 0.2s;">
+                ➕ Nuevo Formato
+            </button>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 0.9rem; font-weight: 600; color: #475569;">⚙️ Acción Arrastrar:</span>
+            <div class="mode-toggle-container" style="display: flex; background: #e2e8f0; border-radius: 6px; padding: 3px;">
+                <button id="mode-csv-btn" class="toggle-btn active-toggle" style="background: var(--primary); color: white; border: none; padding: 0.35rem 0.85rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    📊 Cargar CSV
+                </button>
+                <button id="mode-format-btn" class="toggle-btn" style="background: transparent; color: #64748b; border: none; padding: 0.35rem 0.85rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    📥 Importar Formato (JSON)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="dropzone">
         <svg style="width: 64px; height: 64px; color: #94a3b8; margin-bottom: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
         </svg>
-        <h3>Arrastra tu archivo CSV aquí</h3>
-        <p style="color: #64748b; margin-top: 0.5rem;">o haz clic para explorar tu equipo</p>
+        <h3 id="dropzone-title">Arrastra tu archivo CSV aquí</h3>
+        <p id="dropzone-subtitle" style="color: #64748b; margin-top: 0.5rem;">o haz clic para explorar tu equipo</p>
         <input type="file" id="file-input" accept=".csv" />
     </div>
 
@@ -36,16 +63,26 @@ require_once __DIR__ . '/../../core/auth_checker.php';
         <div class="persistence-bar">
             <div>
                 <span id="file-info" style="font-size: 0.9rem; font-weight: 600; color: #475569;"></span>
+                <span id="editor-badge" style="display: none; background: #e0f2fe; color: #0369a1; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 700; margin-left: 0.5rem; border: 1px solid #bae6fd;">📝 MODO EDITOR DE FORMATO</span>
             </div>
-            <div style="display: flex; gap: 0.75rem; align-items: center;">
-                <select id="load-profile-select" class="column-select" style="width: 200px;">
-                    <option value="">-- Cargar Formato Guardado --</option>
-                    </select>
-                <button id="btn-save-profile" disabled style="background: #10b981; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                    💾 Guardar Formato
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button id="btn-save-profile" style="background: #10b981; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                    💾 Guardar
+                </button>
+                <button id="btn-save-as-profile" style="background: #059669; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                    💾 Guardar Como...
+                </button>
+                <button id="btn-delete-profile" style="background: #ef4444; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: none;">
+                    🗑️ Borrar Formato
+                </button>
+                <button id="btn-export-profile-json" style="background: #4b5563; color: white; border: none; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                    📤 Exportar Formato (JSON)
                 </button>
                 <button id="btn-export" style="background: var(--primary); color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                     🚀 Exportar CSV Ianseo
+                </button>
+                <button id="btn-exit-editor" style="background: #64748b; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: none;">
+                    🚪 Salir
                 </button>
             </div>
         </div>
@@ -55,7 +92,7 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                 <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #64748b; text-transform: uppercase; font-weight: 600;">
                     Previsualización del origen (As is)
                 </div>
-		<div id="event-context-bar" style="display: flex; gap: 1.5rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); flex-wrap: wrap;">
+		<div id="event-context-bar" class="hide-in-editor" style="display: flex; gap: 1.5rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); flex-wrap: wrap;">
         	    <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <label for="event-date" style="font-size: 0.85rem; font-weight: 600; color: #475569;">📅 Fecha Torneo:</label>
                         <input type="date" id="event-date" style="padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85rem; outline: none; border-left: 3px solid var(--primary);">

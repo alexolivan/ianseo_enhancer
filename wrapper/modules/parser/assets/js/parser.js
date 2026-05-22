@@ -34,13 +34,91 @@ let startRow = 2;
 let endRow = 2;
 let previewModeShowAll = false;
 
+// Variables de Estado de Plantillas y Editor de Formato
+let isEditorMode = false;
+let currentFormatId = null;
+let currentFormatName = "";
+let dragDropMode = 'csv'; // 'csv' o 'format'
+
+
 
 function processFile(file) {
-    if (!file.name.endsWith('.csv')) {
-        alert('Por favor, selecciona un archivo CSV válido.');
-        return;
-    }
+    if (dragDropMode === 'format') {
+        if (!file.name.endsWith('.json')) {
+            alert('Por favor, selecciona un archivo JSON de formato válido.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.name || (!data.mappings && !data.rules)) {
+                    alert('El archivo JSON no tiene la estructura de un formato válido.');
+                    return;
+                }
+                
+                // Entrar en modo editor automáticamente al importar un formato
+                isEditorMode = true;
+                currentFormatId = null; // Tratado como nuevo hasta que se guarde
+                currentFormatName = data.name;
+                
+                // Actualizar clases de la UI
+                document.body.classList.add('editor-active');
+                workspace.classList.add('editor-active');
+                
+                // Mostrar botones de editor
+                document.getElementById('editor-badge').style.display = 'inline-block';
+                document.getElementById('btn-delete-profile').style.display = 'none'; // Nuevo, no se borra aún
+                document.getElementById('btn-exit-editor').style.display = 'inline-block';
+                document.getElementById('btn-export').style.display = 'none';
+                
+                // Cargar datos
+                loadFormatFromData(data);
+                
+                // Ocultar dropzone, mostrar workspace
+                document.getElementById('dropzone').style.display = 'none';
+                document.getElementById('workspace').style.display = 'block';
+                
+                // Cambiar info del archivo
+                document.getElementById('file-info').innerText = "Editando plantilla importada: " + data.name;
+                
+                alert("Plantilla de formato importada correctamente en el Editor. Recuerda hacer clic en Guardar para persistirla.");
+            } catch (err) {
+                alert("Error al procesar el archivo JSON: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    } else {
+        if (!file.name.endsWith('.csv')) {
+            alert('Por favor, selecciona un archivo CSV válido.');
+            return;
+        }
 
+        // Si hay una plantilla seleccionada en el select, la cargamos antes
+        const selectedFormatId = document.getElementById('format-select').value;
+        if (selectedFormatId !== "") {
+            fetch(`api.php?action=get_format&id=${selectedFormatId}`)
+                .then(res => res.json())
+                .then(json => {
+                    if (json.status === 'success') {
+                        loadFormatFromData(json.data);
+                        currentFormatId = json.data.id;
+                        currentFormatName = json.data.name;
+                    }
+                    // Ahora procesamos y renderizamos el CSV
+                    readAndRenderCSV(file);
+                })
+                .catch(err => {
+                    console.error("Error al cargar la plantilla pre-seleccionada", err);
+                    readAndRenderCSV(file);
+                });
+        } else {
+            readAndRenderCSV(file);
+        }
+    }
+}
+
+function readAndRenderCSV(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
@@ -49,6 +127,9 @@ function processFile(file) {
         // Transición de la UI: Ocultar zona de subida, mostrar mesa de trabajo
         document.getElementById('dropzone').style.display = 'none';
         document.getElementById('workspace').style.display = 'block';
+        
+        // Actualizar etiqueta del archivo
+        document.getElementById('file-info').innerText = "Archivo: " + file.name;
     };
     reader.readAsText(file);
 }
@@ -196,6 +277,342 @@ function renderRawCSV(csvText, fileName) {
     populateIanseoTargets();
 }
 
+// ============================================================================
+// --- CONTROLADORES CRUD DE FORMATOS (PERSISTENCIA Y EDICIÓN INVERSA) ---
+// ============================================================================
+
+async function loadFormatList() {
+    try {
+        const res = await fetch('api.php?action=list_formats');
+        const json = await res.json();
+        if (json.status === 'success') {
+            const select = document.getElementById('format-select');
+            if (select) {
+                select.innerHTML = '<option value="">-- Sin plantilla (Empezar en blanco) --</option>';
+                json.data.forEach(fmt => {
+                    select.innerHTML += `<option value="${fmt.id}">${fmt.name}</option>`;
+                });
+            }
+        }
+    } catch(err) {
+        console.error("Error al listar formatos:", err);
+    }
+}
+
+function loadFormatFromData(formatData) {
+    // 1. Establecer variables de estado
+    currentFormatId = formatData.id || null;
+    currentFormatName = formatData.name || "";
+    
+    // 2. Limpiar RAM
+    profileRulesRAM = {
+        Session: {}, Division: {}, Class: {}, Gender: {}, 
+        Affil1: {}, Affil2: {}, Affil3: {}
+    };
+    
+    // 3. Limpiar selectores de columnas
+    document.querySelectorAll('.target-field').forEach(select => {
+        select.value = "";
+    });
+    
+    // 4. Cargar mapeos en selectores
+    if (Array.isArray(formatData.mappings)) {
+        formatData.mappings.forEach(map => {
+            const select = document.querySelector(`.target-field[data-field-name="${map.ianseo_field}"]`);
+            if (select) {
+                select.value = map.csv_column_index;
+                
+                // Habilitar botón de engranaje (reglas) si corresponde
+                const gearBtn = document.querySelector(`.map-trigger[data-field-name="${map.ianseo_field}"]`);
+                if (gearBtn) {
+                    gearBtn.disabled = false;
+                    gearBtn.style.opacity = "1";
+                    gearBtn.style.cursor = "pointer";
+                }
+            }
+        });
+    }
+    
+    // 5. Cargar reglas en profileRulesRAM
+    if (Array.isArray(formatData.rules)) {
+        formatData.rules.forEach(rule => {
+            const field = rule.ianseo_field;
+            
+            // Comprobar si es un mapeo booleano
+            const select = document.querySelector(`.target-field[data-field-name="${field}"]`);
+            if (select && select.getAttribute('data-type') === 'boolean-mapping') {
+                if (rule.input_value === 'triggers') {
+                    profileRulesRAM[field] = { triggers: rule.output_value };
+                }
+            } else if (field === 'Class') {
+                let ageObj = {};
+                try {
+                    ageObj = JSON.parse(rule.secondary_output);
+                } catch(e) {
+                    ageObj = { ageCorrespondMin: 18, ageCorrespondMax: 50, ageAllowedMin: 18, ageAllowedMax: 50 };
+                }
+                profileRulesRAM.Class[rule.input_value] = {
+                    out: rule.output_value,
+                    ageCorrespondMin: ageObj.ageCorrespondMin !== undefined ? ageObj.ageCorrespondMin : 18,
+                    ageCorrespondMax: ageObj.ageCorrespondMax !== undefined ? ageObj.ageCorrespondMax : 50,
+                    ageAllowedMin: ageObj.ageAllowedMin !== undefined ? ageObj.ageAllowedMin : 18,
+                    ageAllowedMax: ageObj.ageAllowedMax !== undefined ? ageObj.ageAllowedMax : 50
+                };
+            } else if (profileRulesRAM[field]) {
+                profileRulesRAM[field][rule.input_value] = {
+                    out: rule.output_value,
+                    secondary: rule.secondary_output || ""
+                };
+            }
+        });
+    }
+    
+    // 6. Actualizar indicadores de engranaje (verde si tiene datos)
+    document.querySelectorAll('.map-trigger').forEach(gearBtn => {
+        const fieldName = gearBtn.getAttribute('data-field-name');
+        if (fieldName && profileRulesRAM[fieldName]) {
+            const hasData = Object.keys(profileRulesRAM[fieldName]).length > 0;
+            gearBtn.style.background = hasData ? "#dcfce7" : "#f1f5f9";
+        }
+    });
+
+    if (typeof updateUIState === 'function') updateUIState();
+    
+    // Si estamos en modo editor, actualizar la simulación dinámica
+    if (isEditorMode) {
+        generateDummyCSV();
+    }
+}
+
+function generateDummyCSV() {
+    let maxIdx = -1;
+    const mappingsList = [];
+    document.querySelectorAll('.target-field').forEach(select => {
+        const val = parseInt(select.value);
+        if (!isNaN(val) && val >= 0) {
+            if (val > maxIdx) maxIdx = val;
+            mappingsList.push({ field: select.getAttribute('data-field-name'), idx: val });
+        }
+    });
+
+    const numCols = Math.max(5, maxIdx + 1);
+    
+    // Generamos 4 filas de datos dummy interactivos
+    rawDataRows = [];
+    const dummyNames = ["Alejandro", "Maria", "Carlos", "Lucia"];
+    const dummyLastNames = ["Olivan", "Garcia", "Fernandez", "Rodriguez"];
+    const dummyLicencias = ["98765", "12345", "54321", "67890"];
+    
+    for (let r = 0; r < 4; r++) {
+        const row = [];
+        for (let c = 0; c < numCols; c++) {
+            const mapped = mappingsList.find(m => m.idx === c);
+            if (mapped) {
+                const field = mapped.field;
+                const rulesKey = field.replace("Code", ""); // Affil1Code -> Affil1
+                const rules = profileRulesRAM[rulesKey];
+                
+                if (rules && typeof rules === 'object' && !rules.triggers) {
+                    const keys = Object.keys(rules);
+                    if (keys.length > 0) {
+                        row.push(keys[r % keys.length]);
+                    } else {
+                        row.push(`[Valor ${field}]`);
+                    }
+                } else if (field === 'Bib') {
+                    row.push(dummyLicencias[r]);
+                } else if (field === 'Name') {
+                    row.push(dummyNames[r]);
+                } else if (field === 'LastName') {
+                    row.push(dummyLastNames[r]);
+                } else if (field === 'DOB') {
+                    row.push(`199${r}-05-15`);
+                } else if (field === 'Subclass') {
+                    row.push(r % 2 === 0 ? "J" : "");
+                } else {
+                    row.push(`Ejemplo ${field}`);
+                }
+            } else {
+                row.push("");
+            }
+        }
+        rawDataRows.push(row);
+    }
+    
+    // Sincronizar límites de fila
+    startRow = 1;
+    endRow = rawDataRows.length;
+    
+    const startInput = document.getElementById('start-row');
+    const endInput = document.getElementById('end-row');
+    if (startInput) startInput.value = startRow;
+    if (endInput) endInput.value = endRow;
+    
+    renderCSVTable();
+}
+
+function serializeMappings() {
+    const mappings = [];
+    document.querySelectorAll('.target-field').forEach(select => {
+        const val = select.value;
+        if (val !== "") {
+            mappings.push({
+                ianseo_field: select.getAttribute('data-field-name'),
+                csv_column_index: parseInt(val),
+                process_mode: select.getAttribute('data-type') || 'passthrough'
+            });
+        }
+    });
+    return mappings;
+}
+
+function serializeRules() {
+    const rules = [];
+    const mappingFields = ['Session', 'Division', 'Class', 'Gender', 'Affil1', 'Affil2', 'Affil3'];
+    mappingFields.forEach(field => {
+        const dict = profileRulesRAM[field];
+        if (dict && typeof dict === 'object') {
+            if (dict.triggers) {
+                rules.push({
+                    ianseo_field: field,
+                    input_value: 'triggers',
+                    output_value: dict.triggers,
+                    secondary_output: null
+                });
+            } else {
+                Object.keys(dict).forEach(key => {
+                    const val = dict[key];
+                    if (field === 'Class') {
+                        rules.push({
+                            ianseo_field: 'Class',
+                            input_value: key,
+                            output_value: val.out,
+                            secondary_output: JSON.stringify({
+                                ageCorrespondMin: val.ageCorrespondMin,
+                                ageCorrespondMax: val.ageCorrespondMax,
+                                ageAllowedMin: val.ageAllowedMin,
+                                ageAllowedMax: val.ageAllowedMax
+                            })
+                        });
+                    } else {
+                        rules.push({
+                            ianseo_field: field,
+                            input_value: key,
+                            output_value: val.out,
+                            secondary_output: val.secondary || null
+                        });
+                    }
+                });
+            }
+        }
+    });
+    return rules;
+}
+
+function enterEditorMode(formatName, formatId = null) {
+    isEditorMode = true;
+    currentFormatId = formatId;
+    currentFormatName = formatName;
+    
+    // Clases CSS
+    document.body.classList.add('editor-active');
+    workspace.classList.add('editor-active');
+    
+    // Visibilidad de elementos del editor
+    document.getElementById('editor-badge').style.display = 'inline-block';
+    document.getElementById('btn-delete-profile').style.display = formatId ? 'inline-block' : 'none';
+    document.getElementById('btn-exit-editor').style.display = 'inline-block';
+    document.getElementById('btn-export').style.display = 'none';
+    
+    // Transición UI
+    document.getElementById('dropzone').style.display = 'none';
+    document.getElementById('workspace').style.display = 'block';
+    
+    // Etiqueta informativa
+    document.getElementById('file-info').innerText = "Editando plantilla: " + formatName;
+    
+    // Habilitar todos los selectores de destino
+    document.querySelectorAll('.target-field').forEach(select => {
+        select.disabled = false;
+    });
+    
+    // Habilitar engranajes
+    document.querySelectorAll('.map-trigger').forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+    });
+    
+    // Sincronizar selectores tri-estado
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        sel.value = "mapping";
+        const block = sel.closest('.event-block');
+        if (block) {
+            const mappingRow = block.querySelector('.event-mapping-row');
+            if (mappingRow) mappingRow.style.display = 'flex';
+        }
+    });
+    
+    document.querySelectorAll('.affil-block').forEach(block => {
+        const selects = block.querySelectorAll('.target-field');
+        selects.forEach(s => s.disabled = false);
+        const codeSelect = block.querySelector('.affil-code');
+        if (codeSelect) {
+            const nextModule = parseInt(codeSelect.getAttribute('data-module')) + 1;
+            const nextBlock = document.querySelector(`.affil-block[data-module="${nextModule}"]`);
+            if (nextBlock) {
+                nextBlock.querySelectorAll('.target-field').forEach(s => s.disabled = false);
+            }
+        }
+    });
+    
+    // Si es un formato nuevo (id null), inicializar RAM y selects vacíos
+    if (!formatId) {
+        profileRulesRAM = {
+            Session: {}, Division: {}, Class: {}, Gender: {}, 
+            Affil1: {}, Affil2: {}, Affil3: {}
+        };
+        document.querySelectorAll('.target-field').forEach(select => {
+            select.value = "";
+        });
+        document.querySelectorAll('.map-trigger').forEach(btn => {
+            btn.style.background = "#f1f5f9";
+        });
+    }
+
+    // Generar la tabla dummy
+    generateDummyCSV();
+}
+
+function exitEditorMode() {
+    isEditorMode = false;
+    currentFormatId = null;
+    currentFormatName = "";
+    
+    document.body.classList.remove('editor-active');
+    workspace.classList.remove('editor-active');
+    
+    document.getElementById('editor-badge').style.display = 'none';
+    document.getElementById('btn-delete-profile').style.display = 'none';
+    document.getElementById('btn-exit-editor').style.display = 'none';
+    document.getElementById('btn-export').style.display = 'inline-block';
+    
+    document.getElementById('workspace').style.display = 'none';
+    document.getElementById('dropzone').style.display = 'flex';
+    document.getElementById('file-info').innerText = "";
+    
+    fileInput.value = "";
+    rawDataRows = [];
+    currentHeaders = [];
+    profileRulesRAM = {
+        Session: {}, Division: {}, Class: {}, Gender: {}, 
+        Affil1: {}, Affil2: {}, Affil3: {}
+    };
+    
+    document.getElementById('format-select').value = "";
+    loadFormatList();
+}
+
 function populateIanseoTargets() {
     const targetSelects = document.querySelectorAll('.target-field');
 
@@ -204,6 +621,10 @@ function populateIanseoTargets() {
 
     // Luego inicializamos el estado disabled/enabled
     targetSelects.forEach(select => {
+        if (isEditorMode) {
+            select.disabled = false;
+            return;
+        }
         const type = select.getAttribute('data-type');
         if (type && (type.startsWith('passthrough') || type === 'mapping')) {
             select.disabled = false;
@@ -246,7 +667,12 @@ document.querySelectorAll('.target-field').forEach(select => {
 
 // Escuchar cambios en todos los selectores de destino Ianseo
 document.querySelectorAll('.target-field').forEach(select => {
-    select.addEventListener('change', updateUIState);
+    select.addEventListener('change', function() {
+        updateUIState();
+        if (isEditorMode) {
+            generateDummyCSV();
+        }
+    });
 });
 
 // --- CONTROLADOR DE EVENTOS TRI-ESTADO (Campos 6-10) ---
@@ -1075,6 +1501,7 @@ document.getElementById('btn-save-map').addEventListener('click', function() {
 
     closeModal();
     if (typeof updateUIState === 'function') updateUIState();
+    if (isEditorMode) generateDummyCSV();
 });
 
 
@@ -1378,6 +1805,315 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        });
+    }
+
+    // ============================================================================
+    // --- SUSCRIPCIÓN DE EVENTOS CRUD Y CONTROLES AVANZADOS ---
+    // ============================================================================
+    
+    // Cargar la lista inicial de formatos al iniciar
+    loadFormatList();
+
+    const modeCsvBtn = document.getElementById('mode-csv-btn');
+    const modeFormatBtn = document.getElementById('mode-format-btn');
+    const dropzoneTitle = document.getElementById('dropzone-title');
+    const dropzoneSubtitle = document.getElementById('dropzone-subtitle');
+    const fileInput = document.getElementById('file-input');
+
+    if (modeCsvBtn && modeFormatBtn) {
+        modeCsvBtn.addEventListener('click', () => {
+            dragDropMode = 'csv';
+            modeCsvBtn.classList.add('active-toggle');
+            modeCsvBtn.style.background = 'var(--primary)';
+            modeCsvBtn.style.color = 'white';
+            
+            modeFormatBtn.classList.remove('active-toggle');
+            modeFormatBtn.style.background = 'transparent';
+            modeFormatBtn.style.color = '#64748b';
+            
+            if (dropzoneTitle) dropzoneTitle.innerText = "Arrastra tu archivo CSV aquí";
+            if (dropzoneSubtitle) dropzoneSubtitle.innerText = "o haz clic para explorar tu equipo";
+            if (fileInput) {
+                fileInput.accept = ".csv";
+                fileInput.value = "";
+            }
+        });
+
+        modeFormatBtn.addEventListener('click', () => {
+            dragDropMode = 'format';
+            modeFormatBtn.classList.add('active-toggle');
+            modeFormatBtn.style.background = 'var(--primary)';
+            modeFormatBtn.style.color = 'white';
+            
+            modeCsvBtn.classList.remove('active-toggle');
+            modeCsvBtn.style.background = 'transparent';
+            modeCsvBtn.style.color = '#64748b';
+            
+            if (dropzoneTitle) dropzoneTitle.innerText = "Arrastra tu archivo JSON aquí";
+            if (dropzoneSubtitle) dropzoneSubtitle.innerText = "para importar y editar una plantilla de formato";
+            if (fileInput) {
+                fileInput.accept = ".json";
+                fileInput.value = "";
+            }
+        });
+    }
+
+    const formatSelect = document.getElementById('format-select');
+    const btnEditFormat = document.getElementById('btn-edit-format');
+
+    if (formatSelect) {
+        formatSelect.addEventListener('change', function() {
+            const val = this.value;
+            if (val === "") {
+                // Reset format state
+                currentFormatId = null;
+                currentFormatName = "";
+                if (btnEditFormat) {
+                    btnEditFormat.disabled = true;
+                    btnEditFormat.style.opacity = "0.6";
+                    btnEditFormat.style.cursor = "not-allowed";
+                }
+                
+                // Si ya hay un CSV cargado, restaurar mapeos a vacío
+                profileRulesRAM = {
+                    Session: {}, Division: {}, Class: {}, Gender: {}, 
+                    Affil1: {}, Affil2: {}, Affil3: {}
+                };
+                document.querySelectorAll('.target-field').forEach(select => {
+                    select.value = "";
+                });
+                document.querySelectorAll('.map-trigger').forEach(btn => {
+                    btn.style.background = "#f1f5f9";
+                });
+                if (typeof updateUIState === 'function') updateUIState();
+            } else {
+                if (btnEditFormat) {
+                    btnEditFormat.disabled = false;
+                    btnEditFormat.style.opacity = "1";
+                    btnEditFormat.style.cursor = "pointer";
+                }
+                
+                // Si ya tenemos un CSV visualizado, cargamos e inyectamos los mapeos inmediatamente
+                fetch(`api.php?action=get_format&id=${val}`)
+                    .then(res => res.json())
+                    .then(json => {
+                        if (json.status === 'success') {
+                            loadFormatFromData(json.data);
+                        }
+                    })
+                    .catch(err => console.error("Error al cargar formato:", err));
+            }
+        });
+    }
+
+    // Botón Nuevo Formato
+    const btnNewFormat = document.getElementById('btn-new-format');
+    if (btnNewFormat) {
+        btnNewFormat.addEventListener('click', () => {
+            const name = prompt("Por favor, introduce el nombre del nuevo formato:");
+            if (name && name.trim() !== "") {
+                enterEditorMode(name.trim(), null);
+            }
+        });
+    }
+
+    // Botón Editar Formato
+    if (btnEditFormat) {
+        btnEditFormat.addEventListener('click', () => {
+            const selectedVal = formatSelect.value;
+            if (selectedVal !== "") {
+                fetch(`api.php?action=get_format&id=${selectedVal}`)
+                    .then(res => res.json())
+                    .then(json => {
+                        if (json.status === 'success') {
+                            enterEditorMode(json.data.name, json.data.id);
+                            loadFormatFromData(json.data);
+                        }
+                    })
+                    .catch(err => console.error("Error al cargar formato para editar:", err));
+            } else {
+                alert("Por favor, selecciona una plantilla para editar.");
+            }
+        });
+    }
+
+    // Botón Salir del Editor
+    const btnExitEditor = document.getElementById('btn-exit-editor');
+    if (btnExitEditor) {
+        btnExitEditor.addEventListener('click', () => {
+            if (confirm("¿Estás seguro de que deseas salir del editor? Se perderán los cambios no guardados.")) {
+                exitEditorMode();
+            }
+        });
+    }
+
+    // Botón Guardar Formato
+    const btnSaveProfile = document.getElementById('btn-save-profile');
+    if (btnSaveProfile) {
+        btnSaveProfile.addEventListener('click', async () => {
+            // Si no estamos en modo editor, y hay un formato cargado, pedir confirmación explicativa
+            if (!isEditorMode) {
+                if (!currentFormatId) {
+                    alert("No hay ningún formato cargado para guardar. Entra en el Editor o usa 'Guardar Como...' para crear uno.");
+                    return;
+                }
+                const conf = confirm(`¿Estás seguro de que deseas guardar las modificaciones sobre la plantilla "${currentFormatName}" desde fuera del Editor?`);
+                if (!conf) return;
+            } else {
+                // En modo editor, si no tenemos nombre (id null), podemos re-confirmar el nombre
+                if (!currentFormatName) {
+                    const name = prompt("Introduce el nombre para el formato:");
+                    if (!name || name.trim() === "") return;
+                    currentFormatName = name.trim();
+                }
+            }
+
+            const payload = {
+                id: currentFormatId,
+                name: currentFormatName,
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            try {
+                const res = await fetch('api.php?action=save_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert(`Plantilla "${currentFormatName}" guardada correctamente.`);
+                    currentFormatId = json.id; // Asignar ID si es nuevo
+                    
+                    // Si estamos en modo editor, actualizar botón borrar para que sea visible
+                    if (isEditorMode) {
+                        const delBtn = document.getElementById('btn-delete-profile');
+                        if (delBtn) delBtn.style.display = 'inline-block';
+                        
+                        // Actualizar info del archivo
+                        document.getElementById('file-info').innerText = "Editando plantilla: " + currentFormatName;
+                    }
+                    
+                    await loadFormatList();
+                    if (formatSelect) {
+                        formatSelect.value = currentFormatId;
+                        if (btnEditFormat) {
+                            btnEditFormat.disabled = false;
+                            btnEditFormat.style.opacity = "1";
+                            btnEditFormat.style.cursor = "pointer";
+                        }
+                    }
+                } else {
+                    alert("Error al guardar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al guardar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Guardar Como...
+    const btnSaveAsProfile = document.getElementById('btn-save-as-profile');
+    if (btnSaveAsProfile) {
+        btnSaveAsProfile.addEventListener('click', async () => {
+            const defaultName = currentFormatName ? currentFormatName + " - copia" : "Nueva Plantilla";
+            const newName = prompt("Guardar como... Introduce el nombre para la copia del formato:", defaultName);
+            if (!newName || newName.trim() === "") return;
+
+            const payload = {
+                id: null, // Nuevo registro
+                name: newName.trim(),
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            try {
+                const res = await fetch('api.php?action=save_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert(`Nueva plantilla "${newName.trim()}" creada correctamente.`);
+                    currentFormatId = json.id;
+                    currentFormatName = newName.trim();
+                    
+                    // Si estábamos en modo editor, actualizar estado visual
+                    if (isEditorMode) {
+                        const delBtn = document.getElementById('btn-delete-profile');
+                        if (delBtn) delBtn.style.display = 'inline-block';
+                        document.getElementById('file-info').innerText = "Editando plantilla: " + currentFormatName;
+                    }
+                    
+                    await loadFormatList();
+                    if (formatSelect) {
+                        formatSelect.value = currentFormatId;
+                        if (btnEditFormat) {
+                            btnEditFormat.disabled = false;
+                            btnEditFormat.style.opacity = "1";
+                            btnEditFormat.style.cursor = "pointer";
+                        }
+                    }
+                } else {
+                    alert("Error al guardar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al duplicar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Borrar Formato
+    const btnDeleteProfile = document.getElementById('btn-delete-profile');
+    if (btnDeleteProfile) {
+        btnDeleteProfile.addEventListener('click', async () => {
+            if (!currentFormatId) return;
+            const conf = confirm(`¿Estás seguro de que deseas eliminar permanentemente la plantilla "${currentFormatName}"? Esta acción no se puede deshacer.`);
+            if (!conf) return;
+
+            try {
+                const res = await fetch('api.php?action=delete_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentFormatId })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert("Plantilla de formato eliminada correctamente.");
+                    exitEditorMode();
+                } else {
+                    alert("Error al eliminar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al eliminar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Exportar Formato (JSON)
+    const btnExportProfileJson = document.getElementById('btn-export-profile-json');
+    if (btnExportProfileJson) {
+        btnExportProfileJson.addEventListener('click', () => {
+            const name = currentFormatName || "formato_sin_nombre";
+            const payload = {
+                name: name,
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 4));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            
+            const sanitizedName = name.toLowerCase().replace(/\s+/g, '_') + "_format.json";
+            dlAnchorElem.setAttribute("download", sanitizedName);
+            dlAnchorElem.click();
         });
     }
 });
