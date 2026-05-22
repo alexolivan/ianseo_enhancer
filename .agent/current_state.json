@@ -1,8 +1,8 @@
 {
   "current_task": "Traductor CSV Ianseo (Sugerencias UX: Columnas en Editor y Botón Cerrar Archivo)",
-  "step_active": "Tarea 9: Controles UI en index.php (expected cols input y cerrar archivo btn)",
+  "step_active": "Tarea 10: Integración en parser.js (expected columns dynamic generator, bindings, dynamic scaling y reset)",
   "files_touching": [
-    "wrapper/modules/parser/index.php"
+    "wrapper/modules/parser/assets/js/parser.js"
   ],
   "status": "IN_PROGRESS"
 }

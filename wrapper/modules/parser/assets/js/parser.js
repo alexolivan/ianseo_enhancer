@@ -128,6 +128,10 @@ function readAndRenderCSV(file) {
         document.getElementById('dropzone').style.display = 'none';
         document.getElementById('workspace').style.display = 'block';
         
+        // Control de visibilidad de botones de retorno
+        document.getElementById('btn-close-csv').style.display = 'inline-block';
+        document.getElementById('btn-exit-editor').style.display = 'none';
+        
         // Actualizar etiqueta del archivo
         document.getElementById('file-info').innerText = "Archivo: " + file.name;
     };
@@ -395,7 +399,18 @@ function generateDummyCSV() {
         }
     });
 
-    const numCols = Math.max(5, maxIdx + 1);
+    const expColsInput = document.getElementById('editor-expected-cols');
+    let expCols = expColsInput ? parseInt(expColsInput.value) : 22;
+    if (isNaN(expCols) || expCols < 5) expCols = 22;
+
+    if (maxIdx >= expCols) {
+        expCols = maxIdx + 1;
+        if (expColsInput) {
+            expColsInput.value = expCols;
+        }
+    }
+
+    const numCols = expCols;
     
     // Generamos 4 filas de datos dummy interactivos
     rawDataRows = [];
@@ -520,8 +535,10 @@ function enterEditorMode(formatName, formatId = null) {
     
     // Visibilidad de elementos del editor
     document.getElementById('editor-badge').style.display = 'inline-block';
+    document.getElementById('editor-cols-wrapper').style.display = 'flex';
     document.getElementById('btn-delete-profile').style.display = formatId ? 'inline-block' : 'none';
     document.getElementById('btn-exit-editor').style.display = 'inline-block';
+    document.getElementById('btn-close-csv').style.display = 'none';
     document.getElementById('btn-export').style.display = 'none';
     
     // Transición UI
@@ -593,8 +610,12 @@ function exitEditorMode() {
     workspace.classList.remove('editor-active');
     
     document.getElementById('editor-badge').style.display = 'none';
+    document.getElementById('editor-cols-wrapper').style.display = 'none';
+    const expColsInput = document.getElementById('editor-expected-cols');
+    if (expColsInput) expColsInput.value = 22;
     document.getElementById('btn-delete-profile').style.display = 'none';
     document.getElementById('btn-exit-editor').style.display = 'none';
+    document.getElementById('btn-close-csv').style.display = 'none';
     document.getElementById('btn-export').style.display = 'inline-block';
     
     document.getElementById('workspace').style.display = 'none';
@@ -1944,6 +1965,38 @@ document.addEventListener('DOMContentLoaded', () => {
         btnExitEditor.addEventListener('click', () => {
             if (confirm("¿Estás seguro de que deseas salir del editor? Se perderán los cambios no guardados.")) {
                 exitEditorMode();
+            }
+        });
+    }
+
+    // Botón Cerrar Archivo (Retorno a Bienvenida)
+    const btnCloseCSV = document.getElementById('btn-close-csv');
+    if (btnCloseCSV) {
+        btnCloseCSV.addEventListener('click', () => {
+            if (confirm("¿Estás seguro de que deseas cerrar el archivo actual? Se perderán los mapeos locales no guardados.")) {
+                exitEditorMode();
+            }
+        });
+    }
+
+    // Control dinámico de cantidad de columnas en el editor
+    const editorExpectedColsInput = document.getElementById('editor-expected-cols');
+    if (editorExpectedColsInput) {
+        editorExpectedColsInput.addEventListener('input', () => {
+            let val = parseInt(editorExpectedColsInput.value);
+            if (isNaN(val) || val < 5) return;
+            if (isEditorMode) {
+                generateDummyCSV();
+            }
+        });
+        editorExpectedColsInput.addEventListener('change', () => {
+            let val = parseInt(editorExpectedColsInput.value);
+            if (isNaN(val) || val < 5) {
+                val = 22;
+                editorExpectedColsInput.value = 22;
+            }
+            if (isEditorMode) {
+                generateDummyCSV();
             }
         });
     }
