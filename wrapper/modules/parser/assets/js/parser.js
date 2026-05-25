@@ -27,28 +27,280 @@ let rawDataRows = [];
 // Estructura en RAM para almacenar los mapas locales que configure el usuario
 let profileRulesRAM = {
     Session: {}, Division: {}, Class: {}, Gender: {}, 
-    Affil1: {}, Affil2: {}, Affil3: {}
+    Affil1: {}, Affil2: {}, Affil3: {},
+    IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
 };
 let ageValidationEnabled = false;
 let startRow = 2;
 let endRow = 2;
 let previewModeShowAll = false;
+let currentlyLoadedFormatData = null;
+
+// Variables de Estado de Plantillas y Editor de Formato
+let isEditorMode = false;
+let currentFormatId = null;
+let currentFormatName = "";
+let currentFormatDescription = "";
+let loadedFormats = [];
+let dragDropMode = 'csv'; // 'csv' o 'format'
+
+let currentViewMode = 'input'; // 'input' o 'output'
+
+function getSelectedColIdx(fieldName) {
+    const select = document.querySelector(`.target-field[data-field-name="${fieldName}"]`);
+    if (select && select.value !== "") {
+        return parseInt(select.value);
+    }
+    return -1;
+}
+
+function getRowOutputValues(rowData) {
+    const getBoolVal = (fieldName) => {
+        const modeSelect = document.querySelector(`.event-mode-select[data-field-name="${fieldName}"]`);
+        if (modeSelect) {
+            if (modeSelect.value === 'force-yes') return "1";
+            if (modeSelect.value === 'force-no') return "0";
+        }
+        const idx = getSelectedColIdx(fieldName);
+        if (idx !== -1) {
+            const raw = rowData[idx];
+            if (raw === undefined || raw === null) return "0";
+            const triggers = profileRulesRAM[fieldName] && profileRulesRAM[fieldName].triggers;
+            if (triggers) {
+                const triggerList = triggers.split(',').map(t => t.trim().toLowerCase());
+                return triggerList.includes(raw.trim().toLowerCase()) ? "1" : "0";
+            }
+            return "0";
+        }
+        return "0";
+    };
+
+    const outputValues = [];
+
+    // Helper to get mapped value or raw
+    const getMapped = (fieldName, rawVal) => {
+        if (rawVal === undefined || rawVal === null) return "";
+        const trimmed = String(rawVal).trim();
+        if (profileRulesRAM[fieldName] && (trimmed in profileRulesRAM[fieldName])) {
+            return profileRulesRAM[fieldName][trimmed].out;
+        }
+        return trimmed;
+    };
+
+    // 1. Bib
+    let colIdx = getSelectedColIdx("Bib");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 2. Session
+    colIdx = getSelectedColIdx("Session");
+    if (colIdx !== -1) {
+        const raw = rowData[colIdx];
+        outputValues.push(getMapped("Session", raw));
+    } else {
+        const fixedInput = document.getElementById('session-fixed-value');
+        outputValues.push(fixedInput ? fixedInput.value : "");
+    }
+
+    // 3. Division
+    colIdx = getSelectedColIdx("Division");
+    outputValues.push(colIdx !== -1 ? getMapped("Division", rowData[colIdx]) : "");
+
+    // Compute gender first (so we can concatenate it to class)
+    let mappedGender = "";
+    let genderColIdx = getSelectedColIdx("Gender");
+    if (genderColIdx !== -1) {
+        const rawGen = rowData[genderColIdx];
+        if (rawGen !== undefined && rawGen !== null) {
+            const trimmedGen = String(rawGen).trim();
+            if (profileRulesRAM.Gender && (trimmedGen in profileRulesRAM.Gender)) {
+                mappedGender = profileRulesRAM.Gender[trimmedGen].out;
+            } else {
+                const lowerG = trimmedGen.toLowerCase();
+                if (lowerG.startsWith('w') || lowerG.startsWith('f') || lowerG.includes('mujer') || lowerG.includes('dama')) {
+                    mappedGender = "W";
+                } else if (lowerG.startsWith('m') || lowerG.includes('hombre') || lowerG.includes('varon') || lowerG.includes('caballero')) {
+                    mappedGender = "M";
+                } else {
+                    mappedGender = trimmedGen;
+                }
+            }
+        }
+    }
+
+    // Normalizar mappedGender para evitar null/undefined en la salida o concatenación
+    if (mappedGender === null || mappedGender === undefined || mappedGender === 'null' || mappedGender === 'undefined') {
+        mappedGender = "";
+    } else {
+        mappedGender = String(mappedGender).trim();
+    }
+
+    // 4. Class
+    colIdx = getSelectedColIdx("Class");
+    let mappedClass = "";
+    if (colIdx !== -1) {
+        const rawClass = rowData[colIdx];
+        const mapped = getMapped("Class", rawClass);
+        if (mapped !== null && mapped !== undefined && mapped !== 'null' && mapped !== 'undefined') {
+            mappedClass = String(mapped).trim();
+        }
+    }
+    // Concatenamos el género a la clase siempre (si la clase es vacía/nula, queda solo el género)
+    outputValues.push(mappedClass + mappedGender);
+
+    // 5. Target
+    colIdx = getSelectedColIdx("Target");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 6. IndDivClass
+    outputValues.push(getBoolVal("IndDivClass"));
+    // 7. TeamDivClass
+    outputValues.push(getBoolVal("TeamDivClass"));
+    // 8. IndEvents
+    outputValues.push(getBoolVal("IndEvents"));
+    // 9. TeamEvents
+    outputValues.push(getBoolVal("TeamEvents"));
+    // 10. MixedEvents
+    outputValues.push(getBoolVal("MixedEvents"));
+
+    // 11. LastName
+    colIdx = getSelectedColIdx("LastName");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 12. Name
+    colIdx = getSelectedColIdx("Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 13. Gender
+    outputValues.push(mappedGender);
+
+    // 14. Affil1Code
+    colIdx = getSelectedColIdx("Affil1Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil1", rowData[colIdx]) : "");
+
+    // 15. Affil1Name
+    colIdx = getSelectedColIdx("Affil1Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 16. DOB
+    colIdx = getSelectedColIdx("DOB");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 17. Subclass
+    colIdx = getSelectedColIdx("Subclass");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 18. Affil2Code
+    colIdx = getSelectedColIdx("Affil2Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil2", rowData[colIdx]) : "");
+
+    // 19. Affil2Name
+    colIdx = getSelectedColIdx("Affil2Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 20. Affil3Code
+    colIdx = getSelectedColIdx("Affil3Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil3", rowData[colIdx]) : "");
+
+    // 21. Affil3Name
+    colIdx = getSelectedColIdx("Affil3Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    return outputValues;
+}
+
 
 
 function processFile(file) {
-    if (!file.name.endsWith('.csv')) {
-        alert('Por favor, selecciona un archivo CSV válido.');
-        return;
-    }
+    if (dragDropMode === 'format') {
+        if (!file.name.endsWith('.json')) {
+            alert('Por favor, selecciona un archivo JSON de formato válido.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.name || (!data.mappings && !data.rules)) {
+                    alert('El archivo JSON no tiene la estructura de un formato válido.');
+                    return;
+                }
+                
+                // Entrar en modo editor automáticamente al importar un formato
+                isEditorMode = true;
+                currentFormatId = null; // Tratado como nuevo hasta que se guarde
+                currentFormatName = data.name;
+                
+                // Actualizar clases de la UI
+                document.body.classList.add('editor-active');
+                workspace.classList.add('editor-active');
+                
+                // Mostrar botones de editor
+                document.getElementById('editor-badge').style.display = 'inline-block';
+                document.getElementById('btn-delete-profile').style.display = 'none'; // Nuevo, no se borra aún
+                document.getElementById('btn-exit-editor').style.display = 'inline-block';
+                document.getElementById('btn-export').style.display = 'none';
+                
+                // Cargar datos
+                loadFormatFromData(data);
+                
+                // Ocultar dropzone, mostrar workspace
+                document.getElementById('dropzone').style.display = 'none';
+                document.getElementById('workspace').style.display = 'block';
+                
+                // Cambiar info del archivo
+                document.getElementById('file-info').innerText = "Editando plantilla importada: " + data.name;
+                
+                alert("Plantilla de formato importada correctamente en el Editor. Recuerda hacer clic en Guardar para persistirla.");
+            } catch (err) {
+                alert("Error al procesar el archivo JSON: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    } else {
+        if (!file.name.endsWith('.csv')) {
+            alert('Por favor, selecciona un archivo CSV válido.');
+            return;
+        }
 
+        // Si hay una plantilla seleccionada en el select, la cargamos antes
+        const selectedFormatId = document.getElementById('format-select').value;
+        if (selectedFormatId !== "") {
+            fetch(`api.php?action=get_format&id=${selectedFormatId}`)
+                .then(res => res.json())
+                .then(json => {
+                    if (json.status === 'success') {
+                        // Pasamos el formato para cargarlo DESPUÉS de poblar los dropdowns
+                        readAndRenderCSV(file, json.data);
+                    } else {
+                        readAndRenderCSV(file, null);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error al cargar la plantilla pre-seleccionada", err);
+                    readAndRenderCSV(file, null);
+                });
+        } else {
+            readAndRenderCSV(file, null);
+        }
+    }
+}
+
+function readAndRenderCSV(file, preSelectedFormatData = null) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
-        renderRawCSV(text, file.name);
+        renderRawCSV(text, file.name, preSelectedFormatData);
 
         // Transición de la UI: Ocultar zona de subida, mostrar mesa de trabajo
         document.getElementById('dropzone').style.display = 'none';
         document.getElementById('workspace').style.display = 'block';
+        
+        // Control de visibilidad de botones de retorno
+        document.getElementById('btn-close-csv').style.display = 'inline-block';
+        document.getElementById('btn-exit-editor').style.display = 'none';
+        
+        // Actualizar etiqueta del archivo
+        document.getElementById('file-info').innerText = "Archivo: " + file.name;
     };
     reader.readAsText(file);
 }
@@ -67,49 +319,128 @@ function renderCSVTable() {
         <th class="col-abs-index text-center" style="width: 45px;">#</th>
         <th class="col-rel-index text-center" style="width: 65px; color: var(--primary);">Traductor</th>
     `;
-    currentHeaders.forEach((h, idx) => {
-        headerRow.innerHTML += `<th>${h || `Col ${idx}`}</th>`;
-    });
-    thead.appendChild(headerRow);
 
-    // Render data rows
-    let translatorIndex = 1;
-    rawDataRows.forEach((rowData, rowIndex) => {
-        const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
-        const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
-
-        if (!isSelected && !previewModeShowAll) {
-            // If not selected and we show only selected, skip rendering entirely
-            return;
-        }
-
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-row-index', rowIndex);
-        if (!isSelected) {
-            tr.classList.add('row-selected-shading');
-        }
-
-        // Absolute index
-        tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
-        // Relative translator index
-        if (isSelected) {
-            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
-        } else {
-            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
-        }
-
-        rowData.forEach(cell => {
-            const safeCell = cell ? cell.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
-            tr.innerHTML += `<td>${safeCell}</td>`;
+    if (currentViewMode === 'output') {
+        const ianseoFields = [
+            "Bib", "Session", "Division", "Class", "Target",
+            "IndDivClass", "TeamDivClass", "IndEvents", "TeamEvents", "MixedEvents",
+            "LastName", "Name", "Gender", "Affil1Code", "Affil1Name", "DOB",
+            "Subclass", "Affil2Code", "Affil2Name", "Affil3Code", "Affil3Name"
+        ];
+        ianseoFields.forEach((field, fIdx) => {
+            headerRow.innerHTML += `<th style="color: var(--primary); font-weight: 700;">[${fIdx + 1}] ${field}</th>`;
         });
-        tbody.appendChild(tr);
-    });
+        thead.appendChild(headerRow);
+
+        let translatorIndex = 1;
+        rawDataRows.forEach((rowData, rowIndex) => {
+            const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
+            const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
+
+            if (!isSelected && !previewModeShowAll) {
+                return;
+            }
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-row-index', rowIndex);
+            if (!isSelected) {
+                tr.classList.add('row-selected-shading');
+            }
+
+            // Absolute index
+            tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
+            // Relative translator index
+            if (isSelected) {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
+            } else {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
+            }
+
+            const outputVals = getRowOutputValues(rowData);
+            outputVals.forEach(cell => {
+                const safeCell = cell ? String(cell).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+                tr.innerHTML += `<td>${safeCell}</td>`;
+            });
+            tbody.appendChild(tr);
+        });
+    } else {
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            headerRow.innerHTML += `<th>Columna ${idx + 1}</th>`;
+        }
+        thead.appendChild(headerRow);
+
+        // Render data rows
+        let translatorIndex = 1;
+        rawDataRows.forEach((rowData, rowIndex) => {
+            const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
+            const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
+
+            if (!isSelected && !previewModeShowAll) {
+                // If not selected and we show only selected, skip rendering entirely
+                return;
+            }
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-row-index', rowIndex);
+            if (!isSelected) {
+                tr.classList.add('row-selected-shading');
+            }
+
+            // Absolute index
+            tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
+            // Relative translator index
+            if (isSelected) {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
+            } else {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
+            }
+
+            rowData.forEach(cell => {
+                const safeCell = cell ? cell.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+                tr.innerHTML += `<td>${safeCell}</td>`;
+            });
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Actualizar dinámicamente los textos descriptivos de los desplegables basados en el rango
+    updateIanseoTargetsDropdowns();
 
     // Refresh colors and highlights
     if (typeof updateUIState === 'function') updateUIState();
 }
 
-function renderRawCSV(csvText, fileName) {
+function updateIanseoTargetsDropdowns() {
+    const targetSelects = document.querySelectorAll('.target-field');
+    const firstAvailableRow = rawDataRows && rawDataRows[startRow - 1] ? rawDataRows[startRow - 1] : null;
+
+    targetSelects.forEach(select => {
+        const currentVal = select.value;
+        const fieldName = select.getAttribute('data-field-name');
+
+        // Reconstruimos el contenido de manera dinámica
+        if (fieldName === "Session") {
+            select.innerHTML = '<option value="">-- Ignorar / Fijo --</option>';
+        } else {
+            select.innerHTML = '<option value="">-- Ignorar --</option>';
+        }
+
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            let cellText = "";
+            if (firstAvailableRow && firstAvailableRow[idx] !== undefined) {
+                cellText = firstAvailableRow[idx].trim();
+            }
+            const label = cellText ? `Columna ${idx + 1}: "${cellText}"` : `Columna ${idx + 1}`;
+            select.innerHTML += `<option value="${idx}">${label}</option>`;
+        }
+
+        select.value = currentVal;
+    });
+}
+
+function renderRawCSV(csvText, fileName, preSelectedFormatData = null) {
     const firstLine = csvText.slice(0, csvText.indexOf('\n'));
     const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
     const lines = csvText.split(/\r\n|\n/).filter(line => line.trim() !== '');
@@ -121,6 +452,16 @@ function renderRawCSV(csvText, fileName) {
     rawDataRows = [];
     for (let i = 0; i < lines.length; i++) {
         rawDataRows.push(parseCSVLine(lines[i], delimiter));
+    }
+
+    // Normalizar filas para que todas tengan exactamente el número máximo de columnas detectado
+    if (rawDataRows.length > 0) {
+        const maxCols = Math.max(...rawDataRows.map(row => row.length));
+        for (let i = 0; i < rawDataRows.length; i++) {
+            while (rawDataRows[i].length < maxCols) {
+                rawDataRows[i].push("");
+            }
+        }
     }
 
     // Inicializar límites de Fila Inicial y Final
@@ -146,43 +487,575 @@ function renderRawCSV(csvText, fileName) {
     document.getElementById('file-info').innerHTML = 
         `📁 <strong>${fileName}</strong> | Filas: <strong>${rawDataRows.length}</strong> | Delimitador: <strong>"${delimiter}"</strong>`;
 
+    // Reset view mode to input and show preview toggle wrapper
+    currentViewMode = 'input';
+    const btnViewInput = document.getElementById('btn-view-input');
+    const btnViewOutput = document.getElementById('btn-view-output');
+    if (btnViewInput) btnViewInput.classList.add('active');
+    if (btnViewOutput) btnViewOutput.classList.remove('active');
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'inline-flex';
+
     // Render table
     renderCSVTable();
 
     // 2. POBLAR DESPLEGABLES IANSEO (¡Aquí ocurre la magia de la conexión!)
     populateIanseoTargets();
+
+    // 3. Cargar formato si está pre-seleccionado o previamente cargado en memoria
+    const formatToLoad = preSelectedFormatData || currentlyLoadedFormatData;
+    if (formatToLoad) {
+        loadFormatFromData(formatToLoad);
+    }
+}
+
+// ============================================================================
+// --- CONTROLADORES CRUD DE FORMATOS (PERSISTENCIA Y EDICIÓN INVERSA) ---
+// ============================================================================
+
+function updateFormatDescPreview(formatId) {
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (!previewSpan) return;
+    
+    if (!formatId) {
+        previewSpan.style.display = 'none';
+        previewSpan.innerText = '';
+        previewSpan.title = '';
+        return;
+    }
+    
+    const fmt = loadedFormats.find(f => f.id == formatId);
+    if (fmt && fmt.description && fmt.description.trim() !== "") {
+        previewSpan.style.display = 'inline-block';
+        previewSpan.innerText = `💡 ${fmt.description}`;
+        previewSpan.title = fmt.description;
+    } else {
+        previewSpan.style.display = 'none';
+        previewSpan.innerText = '';
+        previewSpan.title = '';
+    }
+}
+
+async function loadFormatList() {
+    try {
+        const res = await fetch('api.php?action=list_formats');
+        const json = await res.json();
+        if (json.status === 'success') {
+            loadedFormats = json.data || [];
+            const select = document.getElementById('format-select');
+            if (select) {
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">-- Sin plantilla (Empezar en blanco) --</option>';
+                loadedFormats.forEach(fmt => {
+                    select.innerHTML += `<option value="${fmt.id}">${fmt.name}</option>`;
+                });
+                select.value = currentVal;
+                updateFormatDescPreview(select.value);
+            }
+        }
+    } catch(err) {
+        console.error("Error al listar formatos:", err);
+    }
+}
+
+function loadFormatFromData(formatData) {
+    currentlyLoadedFormatData = formatData;
+    // 1. Establecer variables de estado
+    currentFormatId = formatData.id || null;
+    currentFormatName = formatData.name || "";
+    currentFormatDescription = formatData.description || "";
+    
+    const descInput = document.getElementById('editor-format-description');
+    if (descInput) {
+        descInput.value = currentFormatDescription;
+    }
+    
+    // 2. Limpiar RAM
+    profileRulesRAM = {
+        Session: {}, Division: {}, Class: {}, Gender: {}, 
+        Affil1: {}, Affil2: {}, Affil3: {},
+        IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
+    };
+    
+    // 3. Limpiar selectores de columnas
+    document.querySelectorAll('.target-field').forEach(select => {
+        select.value = "";
+    });
+    
+    // 4. Cargar mapeos en selectores
+    if (Array.isArray(formatData.mappings)) {
+        formatData.mappings.forEach(map => {
+            const select = document.querySelector(`.target-field[data-field-name="${map.ianseo_field}"]`);
+            if (select) {
+                select.value = map.csv_column_index;
+                
+                // Habilitar botón de engranaje (reglas) si corresponde
+                const gearBtn = document.querySelector(`.map-trigger[data-field-name="${map.ianseo_field}"]`);
+                if (gearBtn) {
+                    gearBtn.disabled = false;
+                    gearBtn.style.opacity = "1";
+                    gearBtn.style.cursor = "pointer";
+                }
+            }
+        });
+    }
+    
+    // 5. Cargar reglas en profileRulesRAM y configuraciones especiales
+    if (Array.isArray(formatData.rules)) {
+        formatData.rules.forEach(rule => {
+            const field = rule.ianseo_field;
+            
+            if (field === 'Config') {
+                if (rule.input_value === 'ageValidationEnabled') {
+                    const ageToggle = document.getElementById('class-age-validation-toggle');
+                    if (ageToggle) {
+                        ageToggle.checked = (rule.output_value === 'true');
+                        ageValidationEnabled = ageToggle.checked;
+                    }
+                } else if (rule.input_value === 'sessionFixedValue') {
+                    const sessionFixedInput = document.getElementById('session-fixed-value');
+                    if (sessionFixedInput) {
+                        sessionFixedInput.value = rule.output_value;
+                    }
+                } else if (rule.input_value && rule.input_value.endsWith('_mode')) {
+                    const fieldName = rule.input_value.replace('_mode', '');
+                    const modeSelect = document.querySelector(`.event-mode-select[data-field-name="${fieldName}"]`);
+                    if (modeSelect) {
+                        modeSelect.value = rule.output_value;
+                        const block = modeSelect.closest('.event-block');
+                        if (block) {
+                            const mappingRow = block.querySelector('.event-mapping-row');
+                            const targetSelect = block.querySelector('.target-field');
+                            if (rule.output_value === 'mapping') {
+                                if (mappingRow) mappingRow.style.display = 'flex';
+                                if (targetSelect) targetSelect.disabled = false;
+                            } else {
+                                if (mappingRow) mappingRow.style.display = 'none';
+                                if (targetSelect) {
+                                    targetSelect.value = "";
+                                    targetSelect.disabled = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Comprobar si es un mapeo booleano
+                const select = document.querySelector(`.target-field[data-field-name="${field}"]`);
+                if (select && select.getAttribute('data-type') === 'boolean-mapping') {
+                    if (rule.input_value === 'triggers') {
+                        profileRulesRAM[field] = { triggers: rule.output_value };
+                    }
+                } else if (field === 'Class') {
+                    let ageObj = {};
+                    try {
+                        ageObj = JSON.parse(rule.secondary_output);
+                    } catch(e) {
+                        ageObj = { ageCorrespondMin: 18, ageCorrespondMax: 50, ageAllowedMin: 18, ageAllowedMax: 50 };
+                    }
+                    profileRulesRAM.Class[rule.input_value] = {
+                        out: rule.output_value,
+                        ageCorrespondMin: ageObj.ageCorrespondMin !== undefined ? ageObj.ageCorrespondMin : 18,
+                        ageCorrespondMax: ageObj.ageCorrespondMax !== undefined ? ageObj.ageCorrespondMax : 50,
+                        ageAllowedMin: ageObj.ageAllowedMin !== undefined ? ageObj.ageAllowedMin : 18,
+                        ageAllowedMax: ageObj.ageAllowedMax !== undefined ? ageObj.ageAllowedMax : 50
+                    };
+                } else if (profileRulesRAM[field]) {
+                    profileRulesRAM[field][rule.input_value] = {
+                        out: rule.output_value,
+                        secondary: rule.secondary_output || ""
+                    };
+                }
+            }
+        });
+    }
+    
+    // 6. Actualizar indicadores de engranaje (verde si tiene datos)
+    document.querySelectorAll('.map-trigger').forEach(gearBtn => {
+        const fieldName = gearBtn.getAttribute('data-field-name');
+        if (fieldName && profileRulesRAM[fieldName]) {
+            const hasData = Object.keys(profileRulesRAM[fieldName]).length > 0;
+            gearBtn.style.background = hasData ? "#dcfce7" : "#f1f5f9";
+        }
+    });
+
+    if (typeof updateUIState === 'function') updateUIState();
+    
+    // Si estamos en modo editor, actualizar la simulación dinámica
+    if (isEditorMode) {
+        generateDummyCSV();
+    }
+}
+
+function generateDummyCSV() {
+    let maxIdx = -1;
+    const mappingsList = [];
+    document.querySelectorAll('.target-field').forEach(select => {
+        const val = parseInt(select.value);
+        if (!isNaN(val) && val >= 0) {
+            if (val > maxIdx) maxIdx = val;
+            mappingsList.push({ field: select.getAttribute('data-field-name'), idx: val });
+        }
+    });
+
+    const expColsInput = document.getElementById('editor-expected-cols');
+    let expCols = expColsInput ? parseInt(expColsInput.value) : 22;
+    if (isNaN(expCols) || expCols < 5) expCols = 22;
+
+    if (maxIdx >= expCols) {
+        expCols = maxIdx + 1;
+        if (expColsInput) {
+            expColsInput.value = expCols;
+        }
+    }
+
+    const numCols = expCols;
+    
+    // Generamos 4 filas de datos dummy interactivos
+    rawDataRows = [];
+    const dummyNames = ["Alejandro", "Maria", "Carlos", "Lucia"];
+    const dummyLastNames = ["Olivan", "Garcia", "Fernandez", "Rodriguez"];
+    const dummyLicencias = ["98765", "12345", "54321", "67890"];
+    
+    for (let r = 0; r < 4; r++) {
+        const row = [];
+        for (let c = 0; c < numCols; c++) {
+            const mapped = mappingsList.find(m => m.idx === c);
+            if (mapped) {
+                const field = mapped.field;
+                const rulesKey = field.replace("Code", ""); // Affil1Code -> Affil1
+                const rules = profileRulesRAM[rulesKey];
+                
+                if (rules && typeof rules === 'object' && !rules.triggers) {
+                    const keys = Object.keys(rules);
+                    if (keys.length > 0) {
+                        row.push(keys[r % keys.length]);
+                    } else {
+                        row.push(`[Valor ${field}]`);
+                    }
+                } else if (field === 'Bib') {
+                    row.push(dummyLicencias[r]);
+                } else if (field === 'Name') {
+                    row.push(dummyNames[r]);
+                } else if (field === 'LastName') {
+                    row.push(dummyLastNames[r]);
+                } else if (field === 'DOB') {
+                    row.push(`199${r}-05-15`);
+                } else if (field === 'Subclass') {
+                    row.push(r % 2 === 0 ? "J" : "");
+                } else {
+                    row.push(`Ejemplo ${field}`);
+                }
+            } else {
+                row.push("");
+            }
+        }
+        rawDataRows.push(row);
+    }
+    
+    // Sincronizar límites de fila
+    startRow = 1;
+    endRow = rawDataRows.length;
+    
+    const startInput = document.getElementById('start-row');
+    const endInput = document.getElementById('end-row');
+    if (startInput) startInput.value = startRow;
+    if (endInput) endInput.value = endRow;
+    
+    renderCSVTable();
+}
+
+function serializeMappings() {
+    const mappings = [];
+    document.querySelectorAll('.target-field').forEach(select => {
+        const val = select.value;
+        if (val !== "") {
+            mappings.push({
+                ianseo_field: select.getAttribute('data-field-name'),
+                csv_column_index: parseInt(val),
+                process_mode: select.getAttribute('data-type') || 'passthrough'
+            });
+        }
+    });
+    return mappings;
+}
+
+function serializeRules() {
+    const rules = [];
+    const mappingFields = [
+        'Session', 'Division', 'Class', 'Gender', 
+        'Affil1', 'Affil2', 'Affil3',
+        'IndDivClass', 'TeamDivClass', 'IndEvents', 'TeamEvents', 'MixedEvents'
+    ];
+    mappingFields.forEach(field => {
+        const dict = profileRulesRAM[field];
+        if (dict && typeof dict === 'object') {
+            if (dict.triggers) {
+                rules.push({
+                    ianseo_field: field,
+                    input_value: 'triggers',
+                    output_value: dict.triggers,
+                    secondary_output: null
+                });
+            } else {
+                Object.keys(dict).forEach(key => {
+                    const val = dict[key];
+                    if (field === 'Class') {
+                        rules.push({
+                            ianseo_field: 'Class',
+                            input_value: key,
+                            output_value: val.out,
+                            secondary_output: JSON.stringify({
+                                ageCorrespondMin: val.ageCorrespondMin,
+                                ageCorrespondMax: val.ageCorrespondMax,
+                                ageAllowedMin: val.ageAllowedMin,
+                                ageAllowedMax: val.ageAllowedMax
+                            })
+                        });
+                    } else {
+                        rules.push({
+                            ianseo_field: field,
+                            input_value: key,
+                            output_value: val.out,
+                            secondary_output: val.secondary || null
+                        });
+                    }
+                });
+            }
+        }
+    });
+
+    // Guardar configuración de validación de edad
+    const ageToggle = document.getElementById('class-age-validation-toggle');
+    if (ageToggle) {
+        rules.push({
+            ianseo_field: 'Config',
+            input_value: 'ageValidationEnabled',
+            output_value: ageToggle.checked ? 'true' : 'false',
+            secondary_output: null
+        });
+    }
+
+    // Guardar sesión fija
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        rules.push({
+            ianseo_field: 'Config',
+            input_value: 'sessionFixedValue',
+            output_value: sessionFixedInput.value || "",
+            secondary_output: null
+        });
+    }
+
+    // Guardar los modos de los selectores tri-estado de eventos
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        const fieldName = sel.getAttribute('data-field-name');
+        if (fieldName) {
+            rules.push({
+                ianseo_field: 'Config',
+                input_value: fieldName + '_mode',
+                output_value: sel.value,
+                secondary_output: null
+            });
+        }
+    });
+
+    return rules;
+}
+
+function enterEditorMode(formatName, formatId = null) {
+    isEditorMode = true;
+    currentFormatId = formatId;
+    currentFormatName = formatName;
+    if (!formatId) {
+        currentFormatDescription = "";
+        const descInput = document.getElementById('editor-format-description');
+        if (descInput) descInput.value = "";
+    }
+    
+    // Clases CSS
+    document.body.classList.add('editor-active');
+    workspace.classList.add('editor-active');
+    
+    // Visibilidad de elementos del editor
+    document.getElementById('editor-badge').style.display = 'inline-block';
+    document.getElementById('editor-cols-wrapper').style.display = 'flex';
+    
+    const descWrapper = document.getElementById('editor-desc-wrapper');
+    if (descWrapper) descWrapper.style.display = 'flex';
+    
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (previewSpan) previewSpan.style.display = 'none';
+
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'none';
+    
+    document.getElementById('btn-delete-profile').style.display = formatId ? 'inline-block' : 'none';
+    document.getElementById('btn-exit-editor').style.display = 'inline-block';
+    document.getElementById('btn-close-csv').style.display = 'none';
+    document.getElementById('btn-export').style.display = 'none';
+    
+    // Transición UI
+    document.getElementById('dropzone').style.display = 'none';
+    document.getElementById('workspace').style.display = 'block';
+    
+    // Etiqueta informativa
+    document.getElementById('file-info').innerText = "Editando plantilla: " + formatName;
+    
+    // Habilitar todos los selectores de destino
+    document.querySelectorAll('.target-field').forEach(select => {
+        select.disabled = false;
+    });
+    
+    // Habilitar engranajes
+    document.querySelectorAll('.map-trigger').forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+    });
+    
+    // Sincronizar selectores tri-estado
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        sel.value = "mapping";
+        const block = sel.closest('.event-block');
+        if (block) {
+            const mappingRow = block.querySelector('.event-mapping-row');
+            if (mappingRow) mappingRow.style.display = 'flex';
+        }
+    });
+    
+    document.querySelectorAll('.affil-block').forEach(block => {
+        const selects = block.querySelectorAll('.target-field');
+        selects.forEach(s => s.disabled = false);
+        const codeSelect = block.querySelector('.affil-code');
+        if (codeSelect) {
+            const nextModule = parseInt(codeSelect.getAttribute('data-module')) + 1;
+            const nextBlock = document.querySelector(`.affil-block[data-module="${nextModule}"]`);
+            if (nextBlock) {
+                nextBlock.querySelectorAll('.target-field').forEach(s => s.disabled = false);
+            }
+        }
+    });
+    
+    // Si es un formato nuevo (id null), inicializar RAM y selects vacíos
+    if (!formatId) {
+        profileRulesRAM = {
+            Session: {}, Division: {}, Class: {}, Gender: {}, 
+            Affil1: {}, Affil2: {}, Affil3: {},
+            IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
+        };
+        document.querySelectorAll('.target-field').forEach(select => {
+            select.value = "";
+        });
+        document.querySelectorAll('.map-trigger').forEach(btn => {
+            btn.style.background = "#f1f5f9";
+        });
+    }
+
+    // Generar la tabla dummy
+    generateDummyCSV();
+}
+
+function exitEditorMode() {
+    isEditorMode = false;
+    currentFormatId = null;
+    currentFormatName = "";
+    currentFormatDescription = "";
+    currentlyLoadedFormatData = null;
+    
+    // Restaurar controles especiales y desplegables tri-estado
+    const ageToggle = document.getElementById('class-age-validation-toggle');
+    if (ageToggle) {
+        ageToggle.checked = false;
+        ageValidationEnabled = false;
+    }
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        sessionFixedInput.value = "";
+    }
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        sel.value = "force-yes";
+        const block = sel.closest('.event-block');
+        if (block) {
+            const mappingRow = block.querySelector('.event-mapping-row');
+            const targetSelect = block.querySelector('.target-field');
+            if (mappingRow) mappingRow.style.display = 'none';
+            if (targetSelect) {
+                targetSelect.value = "";
+                targetSelect.disabled = true;
+            }
+        }
+    });
+    
+    document.body.classList.remove('editor-active');
+    workspace.classList.remove('editor-active');
+    
+    document.getElementById('editor-badge').style.display = 'none';
+    document.getElementById('editor-cols-wrapper').style.display = 'none';
+    
+    const descWrapper = document.getElementById('editor-desc-wrapper');
+    if (descWrapper) descWrapper.style.display = 'none';
+    
+    const descInput = document.getElementById('editor-format-description');
+    if (descInput) descInput.value = "";
+    
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (previewSpan) previewSpan.style.display = 'none';
+
+    currentViewMode = 'input';
+    const btnViewInput = document.getElementById('btn-view-input');
+    const btnViewOutput = document.getElementById('btn-view-output');
+    if (btnViewInput) btnViewInput.classList.add('active');
+    if (btnViewOutput) btnViewOutput.classList.remove('active');
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'none';
+    
+    const expColsInput = document.getElementById('editor-expected-cols');
+    if (expColsInput) expColsInput.value = 22;
+    document.getElementById('btn-delete-profile').style.display = 'none';
+    document.getElementById('btn-exit-editor').style.display = 'none';
+    document.getElementById('btn-close-csv').style.display = 'none';
+    document.getElementById('btn-export').style.display = 'inline-block';
+    
+    document.getElementById('workspace').style.display = 'none';
+    document.getElementById('dropzone').style.display = 'block';
+    document.getElementById('file-info').innerText = "";
+    
+    fileInput.value = "";
+    rawDataRows = [];
+    currentHeaders = [];
+    profileRulesRAM = {
+        Session: {}, Division: {}, Class: {}, Gender: {}, 
+        Affil1: {}, Affil2: {}, Affil3: {},
+        IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
+    };
+    
+    document.getElementById('format-select').value = "";
+    loadFormatList();
 }
 
 function populateIanseoTargets() {
     const targetSelects = document.querySelectorAll('.target-field');
 
+    // Primero actualizamos las opciones dinámicas de los dropdowns
+    updateIanseoTargetsDropdowns();
+
+    // Luego inicializamos el estado disabled/enabled
     targetSelects.forEach(select => {
-        // Reiniciamos opciones preservando la opción por defecto
-        select.innerHTML = '<option value="">-- Ignorar --</option>';
-
-        // Inyectamos las columnas detectadas en el CSV
-        currentHeaders.forEach((headerText, idx) => {
-            const label = headerText ? `Col ${idx}: ${headerText}` : `Col ${idx}`;
-            select.innerHTML += `<option value="${idx}">${label}</option>`;
-        });
-
-        // LÓGICA DE ESTADOS (Bottom-Up UX)
+        if (isEditorMode) {
+            select.disabled = false;
+            return;
+        }
         const type = select.getAttribute('data-type');
-        const isAffiliation = select.classList.contains('affil-code');
+        if (type && (type.startsWith('passthrough') || type === 'mapping')) {
+            select.disabled = false;
+        }
 
-	// Busca esta parte en tu función y déjala así:
-	if (type && (type.startsWith('passthrough') || type === 'mapping')) {
-	    select.disabled = false; // Ahora todos están abiertos para poder elegir la columna antes de mapear
-	}
-
-        // Las afiliaciones se gestionan por su propia lógica de cascada (inicialmente bloqueamos 2 y 3)
         const moduleNum = select.getAttribute('data-module');
         if (moduleNum && moduleNum > 1) {
             select.disabled = true;
         } else if (moduleNum === "1") {
-            // La afiliación 1 arranca en modo passthrough por defecto, así que habilitamos
             select.disabled = false;
-            // El campo Nombre de la afiliación 1 también se habilita
             const nameSelect = document.querySelector('.target-field[data-field-name="Affil1Name"]');
             if (nameSelect) nameSelect.disabled = false;
         }
@@ -190,7 +1063,6 @@ function populateIanseoTargets() {
 
     // 🚀 EL PRIMER DISPARO: Forzamos la evaluación visual inicial
     updateUIState();
-
 }
 
 function parseCSVLine(line, delimiter) {
@@ -216,7 +1088,12 @@ document.querySelectorAll('.target-field').forEach(select => {
 
 // Escuchar cambios en todos los selectores de destino Ianseo
 document.querySelectorAll('.target-field').forEach(select => {
-    select.addEventListener('change', updateUIState);
+    select.addEventListener('change', function() {
+        updateUIState();
+        if (isEditorMode) {
+            generateDummyCSV();
+        }
+    });
 });
 
 // --- CONTROLADOR DE EVENTOS TRI-ESTADO (Campos 6-10) ---
@@ -250,22 +1127,36 @@ function updateUIState() {
     const rows = tbody ? tbody.querySelectorAll('tr') : [];
 
     // 1. RESETEO TOTAL: Limpiar cabeceras, celdas y botones
-    currentHeaders.forEach((headerText, idx) => {
-        const th = ths[idx + 2];
-        if (th) {
-            th.innerHTML = headerText || `Col ${idx}`;
-            th.classList.remove('th-assigned');
-        }
-        // Limpiamos colores de todas las celdas de esta columna
-        rows.forEach(row => {
-            const td = row.querySelectorAll('td')[idx + 2];
-            if (td) {
-                td.style.backgroundColor = '';
-                td.removeAttribute('title');
-                td.classList.remove('cell-error-class');
+    if (currentViewMode === 'input') {
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            const th = ths[idx + 2];
+            if (th) {
+                th.innerHTML = `Columna ${idx + 1}`;
+                th.classList.remove('th-assigned');
             }
+            // Limpiamos colores de todas las celdas de esta columna
+            rows.forEach(row => {
+                const td = row.querySelectorAll('td')[idx + 2];
+                if (td) {
+                    td.style.backgroundColor = '';
+                    td.removeAttribute('title');
+                    td.classList.remove('cell-error-class');
+                }
+            });
+        }
+    } else {
+        // En vista output no queremos fondos de colores ni estilos de asignación residuales
+        rows.forEach(row => {
+            row.querySelectorAll('td').forEach((td, idx) => {
+                if (idx >= 2) {
+                    td.style.backgroundColor = '';
+                    td.removeAttribute('title');
+                    td.classList.remove('cell-error-class');
+                }
+            });
         });
-    });
+    }
 
     let allRequiredAssigned = true;
     let hasAgeValidationError = false;
@@ -300,9 +1191,40 @@ function updateUIState() {
         const fieldName = select.getAttribute('data-field-name');
         const fieldType = select.getAttribute('data-type');
 
-        // Control de Rojos en campos obligatorios
+        // Control de Rojos en campos obligatorios e integración de sesión fija
         if (isRequired) {
-            if (colIdx === "") {
+            let isPending = false;
+            if (fieldName === "Session") {
+                const sessionFixedInput = document.getElementById('session-fixed-value');
+                const sessionGear = document.querySelector('.btn-gear[data-field-name="Session"]');
+
+                if (colIdx === "") {
+                    // Mostrar input de sesión fija y deshabilitar engranaje
+                    if (sessionFixedInput) sessionFixedInput.style.display = 'block';
+                    if (sessionGear) sessionGear.disabled = true;
+
+                    const val = sessionFixedInput ? parseInt(sessionFixedInput.value) : 0;
+                    if (isNaN(val) || val < 1) {
+                        isPending = true;
+                        if (sessionFixedInput) sessionFixedInput.classList.add('required-pending');
+                    } else {
+                        if (sessionFixedInput) sessionFixedInput.classList.remove('required-pending');
+                    }
+                } else {
+                    // Ocultar input de sesión fija y habilitar engranaje
+                    if (sessionFixedInput) {
+                        sessionFixedInput.style.display = 'none';
+                        sessionFixedInput.classList.remove('required-pending');
+                    }
+                    if (sessionGear) sessionGear.disabled = false;
+                }
+            } else {
+                if (colIdx === "") {
+                    isPending = true;
+                }
+            }
+
+            if (isPending) {
                 select.classList.add('required-pending');
                 allRequiredAssigned = false;
             } else {
@@ -316,7 +1238,7 @@ function updateUIState() {
             const th = ths[targetCol];
 
             // Pintar Cabecera
-            if (th) {
+            if (currentViewMode === 'input' && th) {
                 th.innerHTML = `<strong>${th.innerText}</strong> <br><span style="color:var(--primary); font-size:0.75rem;">[${fieldName}]</span>`;
                 th.classList.add('th-assigned');
             }
@@ -332,20 +1254,22 @@ function updateUIState() {
                 const td = htmlRow.querySelectorAll('td')[targetCol];
                 if (!td) return;
 
-                if (fieldType === 'passthrough-date') {
-                    // Lógica especial para fechas
-                    if (cellValue !== "" && !dateRegex.test(cellValue)) {
-                        td.style.backgroundColor = '#fed7aa'; // Naranja alerta
-                        td.setAttribute('title', 'Formato incorrecto. Ianseo espera YYYY-MM-DD');
-                    } else if (cellValue !== "") {
-                        td.style.backgroundColor = '#f0fdf4'; // Verde OK
-                    }
-                } else {
-                    // Resto de columnas asignadas (Passthrough o Mapping en uso) se asumen OK
-                    if (cellValue !== "") {
-                        // Evitamos pisar el color si dos campos apuntan a la misma columna por error
-                        if (!td.style.backgroundColor || td.style.backgroundColor === 'rgb(240, 253, 244)') {
-                            td.style.backgroundColor = '#f0fdf4'; // Verde suave de éxito
+                if (currentViewMode === 'input') {
+                    if (fieldType === 'passthrough-date') {
+                        // Lógica especial para fechas
+                        if (cellValue !== "" && !dateRegex.test(cellValue)) {
+                            td.style.backgroundColor = '#fed7aa'; // Naranja alerta
+                            td.setAttribute('title', 'Formato incorrecto. Ianseo espera YYYY-MM-DD');
+                        } else if (cellValue !== "") {
+                            td.style.backgroundColor = '#f0fdf4'; // Verde OK
+                        }
+                    } else {
+                        // Resto de columnas asignadas (Passthrough o Mapping en uso) se asumen OK
+                        if (cellValue !== "") {
+                            // Evitamos pisar el color si dos campos apuntan a la misma columna por error
+                            if (!td.style.backgroundColor || td.style.backgroundColor === 'rgb(240, 253, 244)') {
+                                td.style.backgroundColor = '#f0fdf4'; // Verde suave de éxito
+                            }
                         }
                     }
                 }
@@ -372,8 +1296,15 @@ function updateUIState() {
                 const rawClass = rowData[classCol] ? rowData[classCol].trim() : '';
                 const rawGender = genderCol !== "" && rowData[genderCol] ? rowData[genderCol].trim() : '';
 
-                const tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 2];
-                const tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 2];
+                // Get the target DOM cells depending on the view mode
+                let tdClass, tdDob;
+                if (currentViewMode === 'output') {
+                    tdClass = htmlRow.querySelectorAll('td')[5]; // Class is 4th field (index 3 + 2)
+                    tdDob = htmlRow.querySelectorAll('td')[17];  // DOB is 16th field (index 15 + 2)
+                } else {
+                    tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 2];
+                    tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 2];
+                }
 
                 if (!tdClass) return;
 
@@ -570,8 +1501,20 @@ document.getElementById('btn-autopopulate').addEventListener('click', function()
     const selector = document.querySelector(`.target-field[data-field-name="${currentMappingField}"]`);
     if (!selector || selector.value === "") return;
     
-    const uniqueValues = [...new Set(rawDataRows.map(row => row[selector.value] ? row[selector.value].trim() : ''))].filter(v => v !== "");
+    // Solo tener en cuenta el rango de filas seleccionadas para la traducción
+    const rowsInRange = rawDataRows.slice(startRow - 1, endRow);
+    const uniqueValues = [...new Set(rowsInRange.map(row => row[selector.value] ? row[selector.value].trim() : ''))].filter(v => v !== "");
     const existingKeys = Array.from(document.querySelectorAll('#modal-rules-container .rule-key')).map(input => input.value.trim());
+
+    // Limpiar la fila de cortesía vacía si es la única y está en blanco
+    const allRuleKeys = document.querySelectorAll('#modal-rules-container .rule-key');
+    if (allRuleKeys.length === 1 && allRuleKeys[0].value.trim() === "") {
+        const wrapper = document.getElementById('rows-wrapper');
+        if (wrapper) {
+            wrapper.innerHTML = '';
+            rowCounter = 0;
+        }
+    }
 
     uniqueValues.forEach(val => {
         if (!existingKeys.includes(val)) appendRuleRow(val, "", "");
@@ -861,7 +1804,7 @@ function appendRuleRow(keyVal, outVal, secVal, rData) {
     } else if (isClassMapping) {
         mainRow.innerHTML = `
             <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida (Vacío = sin valor)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
             <button type="button" class="btn-toggle-config btn-gear" title="Configurar Edades" style="width: 140px; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.8rem;">
                 ⚙️ Configurar Edades
             </button>
@@ -870,7 +1813,7 @@ function appendRuleRow(keyVal, outVal, secVal, rData) {
     } else {
         mainRow.innerHTML = `
             <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida (Vacío = sin valor)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
             <button type="button" class="btn-delete-row" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
         `;
     }
@@ -1001,6 +1944,7 @@ document.getElementById('btn-save-map').addEventListener('click', function() {
 
     closeModal();
     if (typeof updateUIState === 'function') updateUIState();
+    if (isEditorMode) generateDummyCSV();
 });
 
 
@@ -1077,6 +2021,26 @@ if (previewModeToggle) {
     });
 }
 
+const btnViewInput = document.getElementById('btn-view-input');
+const btnViewOutput = document.getElementById('btn-view-output');
+if (btnViewInput && btnViewOutput) {
+    btnViewInput.addEventListener('click', () => {
+        if (currentViewMode === 'input') return;
+        currentViewMode = 'input';
+        btnViewInput.classList.add('active');
+        btnViewOutput.classList.remove('active');
+        renderCSVTable();
+    });
+
+    btnViewOutput.addEventListener('click', () => {
+        if (currentViewMode === 'output') return;
+        currentViewMode = 'output';
+        btnViewOutput.classList.add('active');
+        btnViewInput.classList.remove('active');
+        renderCSVTable();
+    });
+}
+
 // 2. Pre-rellenar la fecha del torneo con la fecha de hoy al cargar la página e inicializar listeners
 document.addEventListener('DOMContentLoaded', () => {
     // 3. Listener del toggle de validación por edad
@@ -1097,6 +2061,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof updateUIState === 'function') updateUIState();
         });
         eventDateInput.addEventListener('input', function() {
+            if (typeof updateUIState === 'function') updateUIState();
+        });
+    }
+
+    // 4b. Listener del input de sesión fija para repintar y validar en tiempo real
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        sessionFixedInput.addEventListener('change', function() {
+            if (typeof updateUIState === 'function') updateUIState();
+        });
+        sessionFixedInput.addEventListener('input', function() {
             if (typeof updateUIState === 'function') updateUIState();
         });
     }
@@ -1126,146 +2101,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Compilar los datos del CSV
             const outputLines = [];
 
-            // Obtener mapeadores de columnas
-            const getSelectedColIdx = (fieldName) => {
-                const select = document.querySelector(`.target-field[data-field-name="${fieldName}"]`);
-                if (select && select.value !== "") {
-                    return parseInt(select.value);
-                }
-                return -1;
-            };
-
             // Recorrer las filas dentro del rango [startRow, endRow]
             for (let i = startRow - 1; i <= endRow - 1; i++) {
                 const rowData = rawDataRows[i];
                 if (!rowData) continue;
 
-                const exportCols = [];
-
-                // 1. Bib
-                let colIdx = getSelectedColIdx("Bib");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 2. Session
-                colIdx = getSelectedColIdx("Session");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Session[raw] && profileRulesRAM.Session[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 3. Division
-                colIdx = getSelectedColIdx("Division");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Division[raw] && profileRulesRAM.Division[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 4. Class
-                colIdx = getSelectedColIdx("Class");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Class[raw] && profileRulesRAM.Class[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 5. Target
-                colIdx = getSelectedColIdx("Target");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // Helper para mapear booleanos
-                const getBoolVal = (fieldName) => {
-                    const idx = getSelectedColIdx(fieldName);
-                    if (idx !== -1) {
-                        const raw = rowData[idx];
-                        const triggers = profileRulesRAM[fieldName] && profileRulesRAM[fieldName].triggers;
-                        if (triggers) {
-                            const triggerList = triggers.split(',').map(t => t.trim().toLowerCase());
-                            return triggerList.includes(raw.trim().toLowerCase()) ? "1" : "0";
-                        }
-                        return "0";
-                    }
-                    return "";
-                };
-
-                // 6. IndDivClass
-                exportCols.push(getBoolVal("IndDivClass"));
-                // 7. TeamDivClass
-                exportCols.push(getBoolVal("TeamDivClass"));
-                // 8. IndEvents
-                exportCols.push(getBoolVal("IndEvents"));
-                // 9. TeamEvents
-                exportCols.push(getBoolVal("TeamEvents"));
-                // 10. MixedEvents
-                exportCols.push(getBoolVal("MixedEvents"));
-
-                // 11. LastName
-                colIdx = getSelectedColIdx("LastName");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 12. Name
-                colIdx = getSelectedColIdx("Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 13. Gender
-                colIdx = getSelectedColIdx("Gender");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Gender[raw] && profileRulesRAM.Gender[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 14. Affil1Code
-                colIdx = getSelectedColIdx("Affil1Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil1[raw] && profileRulesRAM.Affil1[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 15. Affil1Name
-                colIdx = getSelectedColIdx("Affil1Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 16. DOB
-                colIdx = getSelectedColIdx("DOB");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 17. Subclass
-                colIdx = getSelectedColIdx("Subclass");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 18. Affil2Code
-                colIdx = getSelectedColIdx("Affil2Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil2[raw] && profileRulesRAM.Affil2[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 19. Affil2Name
-                colIdx = getSelectedColIdx("Affil2Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 20. Affil3Code
-                colIdx = getSelectedColIdx("Affil3Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil3[raw] && profileRulesRAM.Affil3[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 21. Affil3Name
-                colIdx = getSelectedColIdx("Affil3Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+                const exportCols = getRowOutputValues(rowData);
 
                 // Escapar todas las celdas y unir con ";"
                 const escapedLine = exportCols.map(val => {
@@ -1292,6 +2133,364 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        });
+    }
+
+    // ============================================================================
+    // --- SUSCRIPCIÓN DE EVENTOS CRUD Y CONTROLES AVANZADOS ---
+    // ============================================================================
+    
+    // Cargar la lista inicial de formatos al iniciar
+    loadFormatList();
+
+    const modeCsvBtn = document.getElementById('mode-csv-btn');
+    const modeFormatBtn = document.getElementById('mode-format-btn');
+    const dropzoneTitle = document.getElementById('dropzone-title');
+    const dropzoneSubtitle = document.getElementById('dropzone-subtitle');
+    const fileInput = document.getElementById('file-input');
+
+    if (modeCsvBtn && modeFormatBtn) {
+        modeCsvBtn.addEventListener('click', () => {
+            dragDropMode = 'csv';
+            modeCsvBtn.classList.add('active-toggle');
+            modeCsvBtn.style.background = 'var(--primary)';
+            modeCsvBtn.style.color = 'white';
+            
+            modeFormatBtn.classList.remove('active-toggle');
+            modeFormatBtn.style.background = 'transparent';
+            modeFormatBtn.style.color = '#64748b';
+            
+            if (dropzoneTitle) dropzoneTitle.innerText = "Arrastra tu archivo CSV aquí";
+            if (dropzoneSubtitle) dropzoneSubtitle.innerText = "o haz clic para explorar tu equipo";
+            if (fileInput) {
+                fileInput.accept = ".csv";
+                fileInput.value = "";
+            }
+        });
+
+        modeFormatBtn.addEventListener('click', () => {
+            dragDropMode = 'format';
+            modeFormatBtn.classList.add('active-toggle');
+            modeFormatBtn.style.background = 'var(--primary)';
+            modeFormatBtn.style.color = 'white';
+            
+            modeCsvBtn.classList.remove('active-toggle');
+            modeCsvBtn.style.background = 'transparent';
+            modeCsvBtn.style.color = '#64748b';
+            
+            if (dropzoneTitle) dropzoneTitle.innerText = "Arrastra tu archivo JSON aquí";
+            if (dropzoneSubtitle) dropzoneSubtitle.innerText = "para importar y editar una plantilla de formato";
+            if (fileInput) {
+                fileInput.accept = ".json";
+                fileInput.value = "";
+            }
+        });
+    }
+
+    const formatSelect = document.getElementById('format-select');
+    const btnEditFormat = document.getElementById('btn-edit-format');
+
+    if (formatSelect) {
+        formatSelect.addEventListener('change', function() {
+            const val = this.value;
+            updateFormatDescPreview(val);
+            if (val === "") {
+                // Reset format state
+                currentFormatId = null;
+                currentFormatName = "";
+                if (btnEditFormat) {
+                    btnEditFormat.disabled = true;
+                    btnEditFormat.style.opacity = "0.6";
+                    btnEditFormat.style.cursor = "not-allowed";
+                }
+                
+                // Si ya hay un CSV cargado, restaurar mapeos a vacío
+                profileRulesRAM = {
+                    Session: {}, Division: {}, Class: {}, Gender: {}, 
+                    Affil1: {}, Affil2: {}, Affil3: {},
+                    IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
+                };
+                document.querySelectorAll('.target-field').forEach(select => {
+                    select.value = "";
+                });
+                document.querySelectorAll('.map-trigger').forEach(btn => {
+                    btn.style.background = "#f1f5f9";
+                });
+                if (typeof updateUIState === 'function') updateUIState();
+            } else {
+                if (btnEditFormat) {
+                    btnEditFormat.disabled = false;
+                    btnEditFormat.style.opacity = "1";
+                    btnEditFormat.style.cursor = "pointer";
+                }
+                
+                // Si ya tenemos un CSV visualizado, cargamos e inyectamos los mapeos inmediatamente
+                fetch(`api.php?action=get_format&id=${val}`)
+                    .then(res => res.json())
+                    .then(json => {
+                        if (json.status === 'success') {
+                            loadFormatFromData(json.data);
+                        }
+                    })
+                    .catch(err => console.error("Error al cargar formato:", err));
+            }
+        });
+    }
+
+    // Botón Nuevo Formato
+    const btnNewFormat = document.getElementById('btn-new-format');
+    if (btnNewFormat) {
+        btnNewFormat.addEventListener('click', () => {
+            const name = prompt("Por favor, introduce el nombre del nuevo formato:");
+            if (name && name.trim() !== "") {
+                enterEditorMode(name.trim(), null);
+            }
+        });
+    }
+
+    // Botón Editar Formato
+    if (btnEditFormat) {
+        btnEditFormat.addEventListener('click', () => {
+            const selectedVal = formatSelect.value;
+            if (selectedVal !== "") {
+                fetch(`api.php?action=get_format&id=${selectedVal}`)
+                    .then(res => res.json())
+                    .then(json => {
+                        if (json.status === 'success') {
+                            enterEditorMode(json.data.name, json.data.id);
+                            loadFormatFromData(json.data);
+                        }
+                    })
+                    .catch(err => console.error("Error al cargar formato para editar:", err));
+            } else {
+                alert("Por favor, selecciona una plantilla para editar.");
+            }
+        });
+    }
+
+    // Botón Salir del Editor
+    const btnExitEditor = document.getElementById('btn-exit-editor');
+    if (btnExitEditor) {
+        btnExitEditor.addEventListener('click', () => {
+            if (confirm("¿Estás seguro de que deseas salir del editor? Se perderán los cambios no guardados.")) {
+                exitEditorMode();
+            }
+        });
+    }
+
+    // Botón Cerrar Archivo (Retorno a Bienvenida)
+    const btnCloseCSV = document.getElementById('btn-close-csv');
+    if (btnCloseCSV) {
+        btnCloseCSV.addEventListener('click', () => {
+            if (confirm("¿Estás seguro de que deseas cerrar el archivo actual? Se perderán los mapeos locales no guardados.")) {
+                exitEditorMode();
+            }
+        });
+    }
+
+    // Control dinámico de cantidad de columnas en el editor
+    const editorExpectedColsInput = document.getElementById('editor-expected-cols');
+    if (editorExpectedColsInput) {
+        editorExpectedColsInput.addEventListener('input', () => {
+            let val = parseInt(editorExpectedColsInput.value);
+            if (isNaN(val) || val < 5) return;
+            if (isEditorMode) {
+                generateDummyCSV();
+            }
+        });
+        editorExpectedColsInput.addEventListener('change', () => {
+            let val = parseInt(editorExpectedColsInput.value);
+            if (isNaN(val) || val < 5) {
+                val = 22;
+                editorExpectedColsInput.value = 22;
+            }
+            if (isEditorMode) {
+                generateDummyCSV();
+            }
+        });
+    }
+
+    // Botón Guardar Formato
+    const btnSaveProfile = document.getElementById('btn-save-profile');
+    if (btnSaveProfile) {
+        btnSaveProfile.addEventListener('click', async () => {
+            // Si no estamos en modo editor, y hay un formato cargado, pedir confirmación explicativa
+            if (!isEditorMode) {
+                if (!currentFormatId) {
+                    alert("No hay ningún formato cargado para guardar. Entra en el Editor o usa 'Guardar Como...' para crear uno.");
+                    return;
+                }
+                const conf = confirm(`¿Estás seguro de que deseas guardar las modificaciones sobre la plantilla "${currentFormatName}" desde fuera del Editor?`);
+                if (!conf) return;
+            } else {
+                // En modo editor, si no tenemos nombre (id null), podemos re-confirmar el nombre
+                if (!currentFormatName) {
+                    const name = prompt("Introduce el nombre para el formato:");
+                    if (!name || name.trim() === "") return;
+                    currentFormatName = name.trim();
+                }
+            }
+
+            const descInput = document.getElementById('editor-format-description');
+            if (descInput && isEditorMode) {
+                currentFormatDescription = descInput.value.trim();
+            }
+
+            const payload = {
+                id: currentFormatId,
+                name: currentFormatName,
+                description: currentFormatDescription,
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            try {
+                const res = await fetch('api.php?action=save_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert(`Plantilla "${currentFormatName}" guardada correctamente.`);
+                    currentFormatId = json.data.id; // Asignar ID si es nuevo
+                    
+                    // Si estamos en modo editor, actualizar botón borrar para que sea visible
+                    if (isEditorMode) {
+                        const delBtn = document.getElementById('btn-delete-profile');
+                        if (delBtn) delBtn.style.display = 'inline-block';
+                        
+                        // Actualizar info del archivo
+                        document.getElementById('file-info').innerText = "Editando plantilla: " + currentFormatName;
+                    }
+                    
+                    await loadFormatList();
+                    if (formatSelect) {
+                        formatSelect.value = currentFormatId;
+                        updateFormatDescPreview(currentFormatId);
+                        if (btnEditFormat) {
+                            btnEditFormat.disabled = false;
+                            btnEditFormat.style.opacity = "1";
+                            btnEditFormat.style.cursor = "pointer";
+                        }
+                    }
+                } else {
+                    alert("Error al guardar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al guardar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Guardar Como...
+    const btnSaveAsProfile = document.getElementById('btn-save-as-profile');
+    if (btnSaveAsProfile) {
+        btnSaveAsProfile.addEventListener('click', async () => {
+            const defaultName = currentFormatName ? currentFormatName + " - copia" : "Nueva Plantilla";
+            const newName = prompt("Guardar como... Introduce el nombre para la copia del formato:", defaultName);
+            if (!newName || newName.trim() === "") return;
+
+            const descInput = document.getElementById('editor-format-description');
+            let descVal = currentFormatDescription;
+            if (descInput && isEditorMode) {
+                descVal = descInput.value.trim();
+            }
+
+            const payload = {
+                id: null, // Nuevo registro
+                name: newName.trim(),
+                description: descVal,
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            try {
+                const res = await fetch('api.php?action=save_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert(`Nueva plantilla "${newName.trim()}" creada correctamente.`);
+                    currentFormatId = json.data.id;
+                    currentFormatName = newName.trim();
+                    
+                    // Si estábamos en modo editor, actualizar estado visual
+                    if (isEditorMode) {
+                        const delBtn = document.getElementById('btn-delete-profile');
+                        if (delBtn) delBtn.style.display = 'inline-block';
+                        document.getElementById('file-info').innerText = "Editando plantilla: " + currentFormatName;
+                    }
+                    
+                    await loadFormatList();
+                    if (formatSelect) {
+                        formatSelect.value = currentFormatId;
+                        updateFormatDescPreview(currentFormatId);
+                        if (btnEditFormat) {
+                            btnEditFormat.disabled = false;
+                            btnEditFormat.style.opacity = "1";
+                            btnEditFormat.style.cursor = "pointer";
+                        }
+                    }
+                } else {
+                    alert("Error al guardar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al duplicar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Borrar Formato
+    const btnDeleteProfile = document.getElementById('btn-delete-profile');
+    if (btnDeleteProfile) {
+        btnDeleteProfile.addEventListener('click', async () => {
+            if (!currentFormatId) return;
+            const conf = confirm(`¿Estás seguro de que deseas eliminar permanentemente la plantilla "${currentFormatName}"? Esta acción no se puede deshacer.`);
+            if (!conf) return;
+
+            try {
+                const res = await fetch('api.php?action=delete_format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentFormatId })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert("Plantilla de formato eliminada correctamente.");
+                    exitEditorMode();
+                } else {
+                    alert("Error al eliminar la plantilla: " + json.message);
+                }
+            } catch(err) {
+                alert("Error de conexión al eliminar la plantilla.");
+                console.error(err);
+            }
+        });
+    }
+
+    // Botón Exportar Formato (JSON)
+    const btnExportProfileJson = document.getElementById('btn-export-profile-json');
+    if (btnExportProfileJson) {
+        btnExportProfileJson.addEventListener('click', () => {
+            const name = currentFormatName || "formato_sin_nombre";
+            const payload = {
+                name: name,
+                mappings: serializeMappings(),
+                rules: serializeRules()
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 4));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            
+            const sanitizedName = name.toLowerCase().replace(/\s+/g, '_') + "_format.json";
+            dlAnchorElem.setAttribute("download", sanitizedName);
+            dlAnchorElem.click();
         });
     }
 });

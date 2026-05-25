@@ -13,7 +13,7 @@ body {
     padding: 2rem;
 }
 .container {
-    max-width: 1200px;
+    max-width: 98%;
     margin: 0 auto;
 }
 header {
@@ -63,7 +63,7 @@ table {
     border-collapse: collapse;
     width: 100%;
     text-align: left;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 /* Cabecera unificada y pegajosa */
@@ -74,13 +74,13 @@ table {
     background-color: #f8fafc;
     box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05);
     font-weight: 600;
-    padding: 0.75rem 1rem;
+    padding: 0.45rem 0.65rem;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
 
 td {
-    padding: 0.75rem 1rem;
+    padding: 0.4rem 0.65rem;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
@@ -473,6 +473,32 @@ display: flex;
 }
 #csv-table thead th {
     z-index: 10;
+}
+
+/* --- ESTILOS ADICIONALES PARA MODO EDITOR Y CONTROLES --- */
+.editor-active .hide-in-editor {
+    display: none !important;
+}
+
+.toggle-btn {
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+    color: var(--primary) !important;
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.active-toggle {
+    background: var(--primary) !important;
+    color: white !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 

@@ -16,3 +16,6 @@ wrapper/assets/*
 # Archivos temporales del sistema operativo
 .DS_Store
 Thumbs.db
+
+# Ignoramos la carpeta docs
+/docs/*
