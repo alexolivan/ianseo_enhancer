@@ -1,6 +1,6 @@
 {
-  "current_task": "Traductor CSV Ianseo (Sugerencias UX: Columnas en Editor y Botón Cerrar Archivo)",
-  "step_active": null,
-  "files_touching": [],
-  "status": "COMPLETED"
+  "current_task": "Troubleshooting API authentication and REST error",
+  "step_active": "fixing undefined esta_autenticado call in api.php",
+  "files_touching": ["wrapper/modules/parser/api.php"],
+  "status": "IN_PROGRESS"
 }

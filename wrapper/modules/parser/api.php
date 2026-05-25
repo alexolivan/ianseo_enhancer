@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../core/logger.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // Verificación rápida de sesión
-if (!esta_autenticado()) {
+if (!isset($_SESSION['user_logged']) || $_SESSION['user_logged'] !== true) {
     http_response_code(401);
     echo json_encode(["status" => "error", "message" => "Sesión no válida o no autenticado."]);
     exit;
