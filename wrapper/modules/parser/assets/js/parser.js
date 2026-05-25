@@ -619,7 +619,7 @@ function exitEditorMode() {
     document.getElementById('btn-export').style.display = 'inline-block';
     
     document.getElementById('workspace').style.display = 'none';
-    document.getElementById('dropzone').style.display = 'flex';
+    document.getElementById('dropzone').style.display = 'block';
     document.getElementById('file-info').innerText = "";
     
     fileInput.value = "";
@@ -2038,7 +2038,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const json = await res.json();
                 if (json.status === 'success') {
                     alert(`Plantilla "${currentFormatName}" guardada correctamente.`);
-                    currentFormatId = json.id; // Asignar ID si es nuevo
+                    currentFormatId = json.data.id; // Asignar ID si es nuevo
                     
                     // Si estamos en modo editor, actualizar botón borrar para que sea visible
                     if (isEditorMode) {
@@ -2092,7 +2092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const json = await res.json();
                 if (json.status === 'success') {
                     alert(`Nueva plantilla "${newName.trim()}" creada correctamente.`);
-                    currentFormatId = json.id;
+                    currentFormatId = json.data.id;
                     currentFormatName = newName.trim();
                     
                     // Si estábamos en modo editor, actualizar estado visual
