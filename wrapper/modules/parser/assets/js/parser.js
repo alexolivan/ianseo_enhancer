@@ -27,12 +27,14 @@ let rawDataRows = [];
 // Estructura en RAM para almacenar los mapas locales que configure el usuario
 let profileRulesRAM = {
     Session: {}, Division: {}, Class: {}, Gender: {}, 
-    Affil1: {}, Affil2: {}, Affil3: {}
+    Affil1: {}, Affil2: {}, Affil3: {},
+    IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
 };
 let ageValidationEnabled = false;
 let startRow = 2;
 let endRow = 2;
 let previewModeShowAll = false;
+let currentlyLoadedFormatData = null;
 
 // Variables de Estado de Plantillas y Editor de Formato
 let isEditorMode = false;
@@ -262,28 +264,27 @@ function processFile(file) {
                 .then(res => res.json())
                 .then(json => {
                     if (json.status === 'success') {
-                        loadFormatFromData(json.data);
-                        currentFormatId = json.data.id;
-                        currentFormatName = json.data.name;
+                        // Pasamos el formato para cargarlo DESPUÉS de poblar los dropdowns
+                        readAndRenderCSV(file, json.data);
+                    } else {
+                        readAndRenderCSV(file, null);
                     }
-                    // Ahora procesamos y renderizamos el CSV
-                    readAndRenderCSV(file);
                 })
                 .catch(err => {
                     console.error("Error al cargar la plantilla pre-seleccionada", err);
-                    readAndRenderCSV(file);
+                    readAndRenderCSV(file, null);
                 });
         } else {
-            readAndRenderCSV(file);
+            readAndRenderCSV(file, null);
         }
     }
 }
 
-function readAndRenderCSV(file) {
+function readAndRenderCSV(file, preSelectedFormatData = null) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
-        renderRawCSV(text, file.name);
+        renderRawCSV(text, file.name, preSelectedFormatData);
 
         // Transición de la UI: Ocultar zona de subida, mostrar mesa de trabajo
         document.getElementById('dropzone').style.display = 'none';
@@ -434,7 +435,7 @@ function updateIanseoTargetsDropdowns() {
     });
 }
 
-function renderRawCSV(csvText, fileName) {
+function renderRawCSV(csvText, fileName, preSelectedFormatData = null) {
     const firstLine = csvText.slice(0, csvText.indexOf('\n'));
     const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
     const lines = csvText.split(/\r\n|\n/).filter(line => line.trim() !== '');
@@ -495,6 +496,12 @@ function renderRawCSV(csvText, fileName) {
 
     // 2. POBLAR DESPLEGABLES IANSEO (¡Aquí ocurre la magia de la conexión!)
     populateIanseoTargets();
+
+    // 3. Cargar formato si está pre-seleccionado o previamente cargado en memoria
+    const formatToLoad = preSelectedFormatData || currentlyLoadedFormatData;
+    if (formatToLoad) {
+        loadFormatFromData(formatToLoad);
+    }
 }
 
 // ============================================================================
@@ -547,6 +554,7 @@ async function loadFormatList() {
 }
 
 function loadFormatFromData(formatData) {
+    currentlyLoadedFormatData = formatData;
     // 1. Establecer variables de estado
     currentFormatId = formatData.id || null;
     currentFormatName = formatData.name || "";
@@ -560,7 +568,8 @@ function loadFormatFromData(formatData) {
     // 2. Limpiar RAM
     profileRulesRAM = {
         Session: {}, Division: {}, Class: {}, Gender: {}, 
-        Affil1: {}, Affil2: {}, Affil3: {}
+        Affil1: {}, Affil2: {}, Affil3: {},
+        IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
     };
     
     // 3. Limpiar selectores de columnas
@@ -586,36 +595,51 @@ function loadFormatFromData(formatData) {
         });
     }
     
-    // 5. Cargar reglas en profileRulesRAM
+    // 5. Cargar reglas en profileRulesRAM y configuraciones especiales
     if (Array.isArray(formatData.rules)) {
         formatData.rules.forEach(rule => {
             const field = rule.ianseo_field;
             
-            // Comprobar si es un mapeo booleano
-            const select = document.querySelector(`.target-field[data-field-name="${field}"]`);
-            if (select && select.getAttribute('data-type') === 'boolean-mapping') {
-                if (rule.input_value === 'triggers') {
-                    profileRulesRAM[field] = { triggers: rule.output_value };
+            if (field === 'Config') {
+                if (rule.input_value === 'ageValidationEnabled') {
+                    const ageToggle = document.getElementById('class-age-validation-toggle');
+                    if (ageToggle) {
+                        ageToggle.checked = (rule.output_value === 'true');
+                        ageValidationEnabled = ageToggle.checked;
+                    }
+                } else if (rule.input_value === 'sessionFixedValue') {
+                    const sessionFixedInput = document.getElementById('session-fixed-value');
+                    if (sessionFixedInput) {
+                        sessionFixedInput.value = rule.output_value;
+                    }
                 }
-            } else if (field === 'Class') {
-                let ageObj = {};
-                try {
-                    ageObj = JSON.parse(rule.secondary_output);
-                } catch(e) {
-                    ageObj = { ageCorrespondMin: 18, ageCorrespondMax: 50, ageAllowedMin: 18, ageAllowedMax: 50 };
+            } else {
+                // Comprobar si es un mapeo booleano
+                const select = document.querySelector(`.target-field[data-field-name="${field}"]`);
+                if (select && select.getAttribute('data-type') === 'boolean-mapping') {
+                    if (rule.input_value === 'triggers') {
+                        profileRulesRAM[field] = { triggers: rule.output_value };
+                    }
+                } else if (field === 'Class') {
+                    let ageObj = {};
+                    try {
+                        ageObj = JSON.parse(rule.secondary_output);
+                    } catch(e) {
+                        ageObj = { ageCorrespondMin: 18, ageCorrespondMax: 50, ageAllowedMin: 18, ageAllowedMax: 50 };
+                    }
+                    profileRulesRAM.Class[rule.input_value] = {
+                        out: rule.output_value,
+                        ageCorrespondMin: ageObj.ageCorrespondMin !== undefined ? ageObj.ageCorrespondMin : 18,
+                        ageCorrespondMax: ageObj.ageCorrespondMax !== undefined ? ageObj.ageCorrespondMax : 50,
+                        ageAllowedMin: ageObj.ageAllowedMin !== undefined ? ageObj.ageAllowedMin : 18,
+                        ageAllowedMax: ageObj.ageAllowedMax !== undefined ? ageObj.ageAllowedMax : 50
+                    };
+                } else if (profileRulesRAM[field]) {
+                    profileRulesRAM[field][rule.input_value] = {
+                        out: rule.output_value,
+                        secondary: rule.secondary_output || ""
+                    };
                 }
-                profileRulesRAM.Class[rule.input_value] = {
-                    out: rule.output_value,
-                    ageCorrespondMin: ageObj.ageCorrespondMin !== undefined ? ageObj.ageCorrespondMin : 18,
-                    ageCorrespondMax: ageObj.ageCorrespondMax !== undefined ? ageObj.ageCorrespondMax : 50,
-                    ageAllowedMin: ageObj.ageAllowedMin !== undefined ? ageObj.ageAllowedMin : 18,
-                    ageAllowedMax: ageObj.ageAllowedMax !== undefined ? ageObj.ageAllowedMax : 50
-                };
-            } else if (profileRulesRAM[field]) {
-                profileRulesRAM[field][rule.input_value] = {
-                    out: rule.output_value,
-                    secondary: rule.secondary_output || ""
-                };
             }
         });
     }
@@ -732,7 +756,11 @@ function serializeMappings() {
 
 function serializeRules() {
     const rules = [];
-    const mappingFields = ['Session', 'Division', 'Class', 'Gender', 'Affil1', 'Affil2', 'Affil3'];
+    const mappingFields = [
+        'Session', 'Division', 'Class', 'Gender', 
+        'Affil1', 'Affil2', 'Affil3',
+        'IndDivClass', 'TeamDivClass', 'IndEvents', 'TeamEvents', 'MixedEvents'
+    ];
     mappingFields.forEach(field => {
         const dict = profileRulesRAM[field];
         if (dict && typeof dict === 'object') {
@@ -770,6 +798,29 @@ function serializeRules() {
             }
         }
     });
+
+    // Guardar configuración de validación de edad
+    const ageToggle = document.getElementById('class-age-validation-toggle');
+    if (ageToggle) {
+        rules.push({
+            ianseo_field: 'Config',
+            input_value: 'ageValidationEnabled',
+            output_value: ageToggle.checked ? 'true' : 'false',
+            secondary_output: null
+        });
+    }
+
+    // Guardar sesión fija
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        rules.push({
+            ianseo_field: 'Config',
+            input_value: 'sessionFixedValue',
+            output_value: sessionFixedInput.value || "",
+            secondary_output: null
+        });
+    }
+
     return rules;
 }
 
@@ -851,7 +902,8 @@ function enterEditorMode(formatName, formatId = null) {
     if (!formatId) {
         profileRulesRAM = {
             Session: {}, Division: {}, Class: {}, Gender: {}, 
-            Affil1: {}, Affil2: {}, Affil3: {}
+            Affil1: {}, Affil2: {}, Affil3: {},
+            IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
         };
         document.querySelectorAll('.target-field').forEach(select => {
             select.value = "";
@@ -870,6 +922,18 @@ function exitEditorMode() {
     currentFormatId = null;
     currentFormatName = "";
     currentFormatDescription = "";
+    currentlyLoadedFormatData = null;
+    
+    // Restaurar controles especiales
+    const ageToggle = document.getElementById('class-age-validation-toggle');
+    if (ageToggle) {
+        ageToggle.checked = false;
+        ageValidationEnabled = false;
+    }
+    const sessionFixedInput = document.getElementById('session-fixed-value');
+    if (sessionFixedInput) {
+        sessionFixedInput.value = "";
+    }
     
     document.body.classList.remove('editor-active');
     workspace.classList.remove('editor-active');
@@ -910,7 +974,8 @@ function exitEditorMode() {
     currentHeaders = [];
     profileRulesRAM = {
         Session: {}, Division: {}, Class: {}, Gender: {}, 
-        Affil1: {}, Affil2: {}, Affil3: {}
+        Affil1: {}, Affil2: {}, Affil3: {},
+        IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
     };
     
     document.getElementById('format-select').value = "";
@@ -2090,7 +2155,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Si ya hay un CSV cargado, restaurar mapeos a vacío
                 profileRulesRAM = {
                     Session: {}, Division: {}, Class: {}, Gender: {}, 
-                    Affil1: {}, Affil2: {}, Affil3: {}
+                    Affil1: {}, Affil2: {}, Affil3: {},
+                    IndDivClass: {}, TeamDivClass: {}, IndEvents: {}, TeamEvents: {}, MixedEvents: {}
                 };
                 document.querySelectorAll('.target-field').forEach(select => {
                     select.value = "";

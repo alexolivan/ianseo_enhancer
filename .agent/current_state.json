@@ -1,6 +1,6 @@
 {
-  "current_task": "Fix class output for senior athletes to fallback to gender",
-  "step_active": "",
-  "files_touching": [],
-  "status": "COMPLETED"
+  "current_task": "Fix format loading race conditions and persist special controls",
+  "step_active": "5. Verify integration and commit/merge to branch test",
+  "files_touching": ["wrapper/modules/parser/assets/js/parser.js"],
+  "status": "IN_PROGRESS"
 }
