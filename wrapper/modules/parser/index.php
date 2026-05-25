@@ -28,6 +28,7 @@ require_once __DIR__ . '/../../core/auth_checker.php';
             <select id="format-select" class="column-select" style="width: 250px; margin: 0; padding: 0.35rem 0.5rem;">
                 <option value="">-- Sin plantilla (Empezar en blanco) --</option>
             </select>
+            <span id="format-desc-preview" style="font-size: 0.85rem; color: #64748b; font-style: italic; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: none;" title=""></span>
             <button id="btn-edit-format" disabled style="background: #3b82f6; color: white; border: none; padding: 0.45rem 1rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; cursor: not-allowed; opacity: 0.6; display: flex; align-items: center; gap: 0.25rem; transition: all 0.2s;">
                 ✏️ Editar
             </button>
@@ -68,6 +69,10 @@ require_once __DIR__ . '/../../core/auth_checker.php';
                 <div id="editor-cols-wrapper" style="display: none; align-items: center; gap: 0.35rem; margin-left: 0.75rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #cbd5e1;">
                     <span style="font-size: 0.8rem; font-weight: 600; color: #475569;">Columnas en plantilla:</span>
                     <input type="number" id="editor-expected-cols" value="22" min="5" max="100" style="width: 55px; padding: 0.15rem 0.3rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-align: center;" />
+                </div>
+                <div id="editor-desc-wrapper" style="display: none; align-items: center; gap: 0.35rem; margin-left: 0.75rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #cbd5e1;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: #475569;">Descripción:</span>
+                    <input type="text" id="editor-format-description" placeholder="Opcional: p. ej. Inscripciones Sala o Aire libre" style="width: 250px; padding: 0.15rem 0.35rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem;" />
                 </div>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">

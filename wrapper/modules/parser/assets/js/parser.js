@@ -38,6 +38,8 @@ let previewModeShowAll = false;
 let isEditorMode = false;
 let currentFormatId = null;
 let currentFormatName = "";
+let currentFormatDescription = "";
+let loadedFormats = [];
 let dragDropMode = 'csv'; // 'csv' o 'format'
 
 
@@ -285,17 +287,44 @@ function renderRawCSV(csvText, fileName) {
 // --- CONTROLADORES CRUD DE FORMATOS (PERSISTENCIA Y EDICIÓN INVERSA) ---
 // ============================================================================
 
+function updateFormatDescPreview(formatId) {
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (!previewSpan) return;
+    
+    if (!formatId) {
+        previewSpan.style.display = 'none';
+        previewSpan.innerText = '';
+        previewSpan.title = '';
+        return;
+    }
+    
+    const fmt = loadedFormats.find(f => f.id == formatId);
+    if (fmt && fmt.description && fmt.description.trim() !== "") {
+        previewSpan.style.display = 'inline-block';
+        previewSpan.innerText = `💡 ${fmt.description}`;
+        previewSpan.title = fmt.description;
+    } else {
+        previewSpan.style.display = 'none';
+        previewSpan.innerText = '';
+        previewSpan.title = '';
+    }
+}
+
 async function loadFormatList() {
     try {
         const res = await fetch('api.php?action=list_formats');
         const json = await res.json();
         if (json.status === 'success') {
+            loadedFormats = json.data || [];
             const select = document.getElementById('format-select');
             if (select) {
+                const currentVal = select.value;
                 select.innerHTML = '<option value="">-- Sin plantilla (Empezar en blanco) --</option>';
-                json.data.forEach(fmt => {
+                loadedFormats.forEach(fmt => {
                     select.innerHTML += `<option value="${fmt.id}">${fmt.name}</option>`;
                 });
+                select.value = currentVal;
+                updateFormatDescPreview(select.value);
             }
         }
     } catch(err) {
@@ -307,6 +336,12 @@ function loadFormatFromData(formatData) {
     // 1. Establecer variables de estado
     currentFormatId = formatData.id || null;
     currentFormatName = formatData.name || "";
+    currentFormatDescription = formatData.description || "";
+    
+    const descInput = document.getElementById('editor-format-description');
+    if (descInput) {
+        descInput.value = currentFormatDescription;
+    }
     
     // 2. Limpiar RAM
     profileRulesRAM = {
@@ -528,6 +563,11 @@ function enterEditorMode(formatName, formatId = null) {
     isEditorMode = true;
     currentFormatId = formatId;
     currentFormatName = formatName;
+    if (!formatId) {
+        currentFormatDescription = "";
+        const descInput = document.getElementById('editor-format-description');
+        if (descInput) descInput.value = "";
+    }
     
     // Clases CSS
     document.body.classList.add('editor-active');
@@ -536,6 +576,13 @@ function enterEditorMode(formatName, formatId = null) {
     // Visibilidad de elementos del editor
     document.getElementById('editor-badge').style.display = 'inline-block';
     document.getElementById('editor-cols-wrapper').style.display = 'flex';
+    
+    const descWrapper = document.getElementById('editor-desc-wrapper');
+    if (descWrapper) descWrapper.style.display = 'flex';
+    
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (previewSpan) previewSpan.style.display = 'none';
+    
     document.getElementById('btn-delete-profile').style.display = formatId ? 'inline-block' : 'none';
     document.getElementById('btn-exit-editor').style.display = 'inline-block';
     document.getElementById('btn-close-csv').style.display = 'none';
@@ -605,12 +652,23 @@ function exitEditorMode() {
     isEditorMode = false;
     currentFormatId = null;
     currentFormatName = "";
+    currentFormatDescription = "";
     
     document.body.classList.remove('editor-active');
     workspace.classList.remove('editor-active');
     
     document.getElementById('editor-badge').style.display = 'none';
     document.getElementById('editor-cols-wrapper').style.display = 'none';
+    
+    const descWrapper = document.getElementById('editor-desc-wrapper');
+    if (descWrapper) descWrapper.style.display = 'none';
+    
+    const descInput = document.getElementById('editor-format-description');
+    if (descInput) descInput.value = "";
+    
+    const previewSpan = document.getElementById('format-desc-preview');
+    if (previewSpan) previewSpan.style.display = 'none';
+    
     const expColsInput = document.getElementById('editor-expected-cols');
     if (expColsInput) expColsInput.value = 22;
     document.getElementById('btn-delete-profile').style.display = 'none';
@@ -1886,6 +1944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formatSelect) {
         formatSelect.addEventListener('change', function() {
             const val = this.value;
+            updateFormatDescPreview(val);
             if (val === "") {
                 // Reset format state
                 currentFormatId = null;
@@ -2022,9 +2081,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            const descInput = document.getElementById('editor-format-description');
+            if (descInput && isEditorMode) {
+                currentFormatDescription = descInput.value.trim();
+            }
+
             const payload = {
                 id: currentFormatId,
                 name: currentFormatName,
+                description: currentFormatDescription,
                 mappings: serializeMappings(),
                 rules: serializeRules()
             };
@@ -2052,6 +2117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await loadFormatList();
                     if (formatSelect) {
                         formatSelect.value = currentFormatId;
+                        updateFormatDescPreview(currentFormatId);
                         if (btnEditFormat) {
                             btnEditFormat.disabled = false;
                             btnEditFormat.style.opacity = "1";
@@ -2076,9 +2142,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const newName = prompt("Guardar como... Introduce el nombre para la copia del formato:", defaultName);
             if (!newName || newName.trim() === "") return;
 
+            const descInput = document.getElementById('editor-format-description');
+            let descVal = currentFormatDescription;
+            if (descInput && isEditorMode) {
+                descVal = descInput.value.trim();
+            }
+
             const payload = {
                 id: null, // Nuevo registro
                 name: newName.trim(),
+                description: descVal,
                 mappings: serializeMappings(),
                 rules: serializeRules()
             };
@@ -2105,6 +2178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await loadFormatList();
                     if (formatSelect) {
                         formatSelect.value = currentFormatId;
+                        updateFormatDescPreview(currentFormatId);
                         if (btnEditFormat) {
                             btnEditFormat.disabled = false;
                             btnEditFormat.style.opacity = "1";

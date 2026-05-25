@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS parser_import_profiles;
 CREATE TABLE IF NOT EXISTS parser_import_profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS parser_profile_mappings (
     profile_id INT NOT NULL,
     ianseo_field VARCHAR(50) NOT NULL,
     csv_column_index INT NOT NULL,
-    process_mode ENUM('passthrough', 'mapping') DEFAULT 'passthrough',
+    process_mode VARCHAR(50) NOT NULL DEFAULT 'passthrough',
     FOREIGN KEY (profile_id) REFERENCES parser_import_profiles(id) ON DELETE CASCADE,
     UNIQUE KEY unique_field_per_profile (profile_id, ianseo_field)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

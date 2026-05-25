@@ -23,7 +23,7 @@ $pdo = Database::getInstance()->getConnection();
 try {
     switch ($action) {
         case 'list_formats':
-            $stmt = $pdo->query("SELECT id, name FROM parser_import_profiles ORDER BY name ASC");
+            $stmt = $pdo->query("SELECT id, name, description FROM parser_import_profiles ORDER BY name ASC");
             $formats = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(["status" => "success", "data" => $formats]);
             break;
@@ -37,7 +37,7 @@ try {
             }
 
             // Obtener el perfil
-            $stmt = $pdo->prepare("SELECT id, name FROM parser_import_profiles WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id, name, description FROM parser_import_profiles WHERE id = ?");
             $stmt->execute([$id]);
             $profile = $stmt->fetch();
 
@@ -62,6 +62,7 @@ try {
                 "data" => [
                     "id" => $profile['id'],
                     "name" => $profile['name'],
+                    "description" => $profile['description'],
                     "mappings" => $mappings,
                     "rules" => $rules
                 ]
@@ -80,6 +81,7 @@ try {
             }
 
             $name = trim($data['name']);
+            $description = isset($data['description']) ? trim($data['description']) : null;
             $profileId = isset($data['id']) ? (int)$data['id'] : 0;
             $mappings = isset($data['mappings']) && is_array($data['mappings']) ? $data['mappings'] : [];
             $rules = isset($data['rules']) && is_array($data['rules']) ? $data['rules'] : [];
@@ -106,8 +108,8 @@ try {
                         throw new Exception("Ya existe otro formato con el nombre '$name'.");
                     }
 
-                    $stmt = $pdo->prepare("UPDATE parser_import_profiles SET name = ? WHERE id = ?");
-                    $stmt->execute([$name, $profileId]);
+                    $stmt = $pdo->prepare("UPDATE parser_import_profiles SET name = ?, description = ? WHERE id = ?");
+                    $stmt->execute([$name, $description, $profileId]);
 
                     // Limpieza profunda de los hijos
                     $pdo->prepare("DELETE FROM parser_profile_mappings WHERE profile_id = ?")->execute([$profileId]);
@@ -121,8 +123,8 @@ try {
                         throw new Exception("Ya existe un formato con el nombre '$name'.");
                     }
 
-                    $stmt = $pdo->prepare("INSERT INTO parser_import_profiles (name) VALUES (?)");
-                    $stmt->execute([$name]);
+                    $stmt = $pdo->prepare("INSERT INTO parser_import_profiles (name, description) VALUES (?, ?)");
+                    $stmt->execute([$name, $description]);
                     $profileId = (int)$pdo->lastInsertId();
                 }
 
