@@ -120,16 +120,25 @@ function getRowOutputValues(rowData) {
         }
     }
 
+    // Normalizar mappedGender para evitar null/undefined en la salida o concatenación
+    if (mappedGender === null || mappedGender === undefined || mappedGender === 'null' || mappedGender === 'undefined') {
+        mappedGender = "";
+    } else {
+        mappedGender = String(mappedGender).trim();
+    }
+
     // 4. Class
     colIdx = getSelectedColIdx("Class");
     let mappedClass = "";
     if (colIdx !== -1) {
-        mappedClass = getMapped("Class", rowData[colIdx]);
-        if (mappedClass !== "" && mappedGender !== "") {
-            mappedClass += mappedGender;
+        const rawClass = rowData[colIdx];
+        const mapped = getMapped("Class", rawClass);
+        if (mapped !== null && mapped !== undefined && mapped !== 'null' && mapped !== 'undefined') {
+            mappedClass = String(mapped).trim();
         }
     }
-    outputValues.push(mappedClass);
+    // Concatenamos el género a la clase siempre (si la clase es vacía/nula, queda solo el género)
+    outputValues.push(mappedClass + mappedGender);
 
     // 5. Target
     colIdx = getSelectedColIdx("Target");

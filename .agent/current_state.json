@@ -1,6 +1,8 @@
 {
-  "current_task": "Implement category and gender translation fixes and preview toggle",
-  "step_active": "",
-  "files_touching": [],
-  "status": "COMPLETED"
+  "current_task": "Fix class output for senior athletes to fallback to gender",
+  "step_active": "1. Modify class and gender concatenation in getRowOutputValues",
+  "files_touching": [
+    "wrapper/modules/parser/assets/js/parser.js"
+  ],
+  "status": "IN_PROGRESS"
 }
