@@ -42,6 +42,156 @@ let currentFormatDescription = "";
 let loadedFormats = [];
 let dragDropMode = 'csv'; // 'csv' o 'format'
 
+let currentViewMode = 'input'; // 'input' o 'output'
+
+function getSelectedColIdx(fieldName) {
+    const select = document.querySelector(`.target-field[data-field-name="${fieldName}"]`);
+    if (select && select.value !== "") {
+        return parseInt(select.value);
+    }
+    return -1;
+}
+
+function getRowOutputValues(rowData) {
+    const getBoolVal = (fieldName) => {
+        const idx = getSelectedColIdx(fieldName);
+        if (idx !== -1) {
+            const raw = rowData[idx];
+            if (raw === undefined || raw === null) return "0";
+            const triggers = profileRulesRAM[fieldName] && profileRulesRAM[fieldName].triggers;
+            if (triggers) {
+                const triggerList = triggers.split(',').map(t => t.trim().toLowerCase());
+                return triggerList.includes(raw.trim().toLowerCase()) ? "1" : "0";
+            }
+            return "0";
+        }
+        return "";
+    };
+
+    const outputValues = [];
+
+    // Helper to get mapped value or raw
+    const getMapped = (fieldName, rawVal) => {
+        if (rawVal === undefined || rawVal === null) return "";
+        const trimmed = String(rawVal).trim();
+        if (profileRulesRAM[fieldName] && (trimmed in profileRulesRAM[fieldName])) {
+            return profileRulesRAM[fieldName][trimmed].out;
+        }
+        return trimmed;
+    };
+
+    // 1. Bib
+    let colIdx = getSelectedColIdx("Bib");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 2. Session
+    colIdx = getSelectedColIdx("Session");
+    if (colIdx !== -1) {
+        const raw = rowData[colIdx];
+        outputValues.push(getMapped("Session", raw));
+    } else {
+        const fixedInput = document.getElementById('session-fixed-value');
+        outputValues.push(fixedInput ? fixedInput.value : "");
+    }
+
+    // 3. Division
+    colIdx = getSelectedColIdx("Division");
+    outputValues.push(colIdx !== -1 ? getMapped("Division", rowData[colIdx]) : "");
+
+    // Compute gender first (so we can concatenate it to class)
+    let mappedGender = "";
+    let genderColIdx = getSelectedColIdx("Gender");
+    if (genderColIdx !== -1) {
+        const rawGen = rowData[genderColIdx];
+        if (rawGen !== undefined && rawGen !== null) {
+            const trimmedGen = String(rawGen).trim();
+            if (profileRulesRAM.Gender && (trimmedGen in profileRulesRAM.Gender)) {
+                mappedGender = profileRulesRAM.Gender[trimmedGen].out;
+            } else {
+                const lowerG = trimmedGen.toLowerCase();
+                if (lowerG.startsWith('w') || lowerG.startsWith('f') || lowerG.includes('mujer') || lowerG.includes('dama')) {
+                    mappedGender = "W";
+                } else if (lowerG.startsWith('m') || lowerG.includes('hombre') || lowerG.includes('varon') || lowerG.includes('caballero')) {
+                    mappedGender = "M";
+                } else {
+                    mappedGender = trimmedGen;
+                }
+            }
+        }
+    }
+
+    // 4. Class
+    colIdx = getSelectedColIdx("Class");
+    let mappedClass = "";
+    if (colIdx !== -1) {
+        mappedClass = getMapped("Class", rowData[colIdx]);
+        if (mappedClass !== "" && mappedGender !== "") {
+            mappedClass += mappedGender;
+        }
+    }
+    outputValues.push(mappedClass);
+
+    // 5. Target
+    colIdx = getSelectedColIdx("Target");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 6. IndDivClass
+    outputValues.push(getBoolVal("IndDivClass"));
+    // 7. TeamDivClass
+    outputValues.push(getBoolVal("TeamDivClass"));
+    // 8. IndEvents
+    outputValues.push(getBoolVal("IndEvents"));
+    // 9. TeamEvents
+    outputValues.push(getBoolVal("TeamEvents"));
+    // 10. MixedEvents
+    outputValues.push(getBoolVal("MixedEvents"));
+
+    // 11. LastName
+    colIdx = getSelectedColIdx("LastName");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 12. Name
+    colIdx = getSelectedColIdx("Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 13. Gender
+    outputValues.push(mappedGender);
+
+    // 14. Affil1Code
+    colIdx = getSelectedColIdx("Affil1Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil1", rowData[colIdx]) : "");
+
+    // 15. Affil1Name
+    colIdx = getSelectedColIdx("Affil1Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 16. DOB
+    colIdx = getSelectedColIdx("DOB");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 17. Subclass
+    colIdx = getSelectedColIdx("Subclass");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 18. Affil2Code
+    colIdx = getSelectedColIdx("Affil2Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil2", rowData[colIdx]) : "");
+
+    // 19. Affil2Name
+    colIdx = getSelectedColIdx("Affil2Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    // 20. Affil3Code
+    colIdx = getSelectedColIdx("Affil3Code");
+    outputValues.push(colIdx !== -1 ? getMapped("Affil3", rowData[colIdx]) : "");
+
+    // 21. Affil3Name
+    colIdx = getSelectedColIdx("Affil3Name");
+    outputValues.push(colIdx !== -1 && rowData[colIdx] !== undefined && rowData[colIdx] !== null ? String(rowData[colIdx]).trim() : "");
+
+    return outputValues;
+}
+
 
 
 function processFile(file) {
@@ -154,44 +304,90 @@ function renderCSVTable() {
         <th class="col-abs-index text-center" style="width: 45px;">#</th>
         <th class="col-rel-index text-center" style="width: 65px; color: var(--primary);">Traductor</th>
     `;
-    const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
-    for (let idx = 0; idx < numCols; idx++) {
-        headerRow.innerHTML += `<th>Columna ${idx + 1}</th>`;
-    }
-    thead.appendChild(headerRow);
 
-    // Render data rows
-    let translatorIndex = 1;
-    rawDataRows.forEach((rowData, rowIndex) => {
-        const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
-        const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
-
-        if (!isSelected && !previewModeShowAll) {
-            // If not selected and we show only selected, skip rendering entirely
-            return;
-        }
-
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-row-index', rowIndex);
-        if (!isSelected) {
-            tr.classList.add('row-selected-shading');
-        }
-
-        // Absolute index
-        tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
-        // Relative translator index
-        if (isSelected) {
-            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
-        } else {
-            tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
-        }
-
-        rowData.forEach(cell => {
-            const safeCell = cell ? cell.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
-            tr.innerHTML += `<td>${safeCell}</td>`;
+    if (currentViewMode === 'output') {
+        const ianseoFields = [
+            "Bib", "Session", "Division", "Class", "Target",
+            "IndDivClass", "TeamDivClass", "IndEvents", "TeamEvents", "MixedEvents",
+            "LastName", "Name", "Gender", "Affil1Code", "Affil1Name", "DOB",
+            "Subclass", "Affil2Code", "Affil2Name", "Affil3Code", "Affil3Name"
+        ];
+        ianseoFields.forEach((field, fIdx) => {
+            headerRow.innerHTML += `<th style="color: var(--primary); font-weight: 700;">[${fIdx + 1}] ${field}</th>`;
         });
-        tbody.appendChild(tr);
-    });
+        thead.appendChild(headerRow);
+
+        let translatorIndex = 1;
+        rawDataRows.forEach((rowData, rowIndex) => {
+            const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
+            const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
+
+            if (!isSelected && !previewModeShowAll) {
+                return;
+            }
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-row-index', rowIndex);
+            if (!isSelected) {
+                tr.classList.add('row-selected-shading');
+            }
+
+            // Absolute index
+            tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
+            // Relative translator index
+            if (isSelected) {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
+            } else {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
+            }
+
+            const outputVals = getRowOutputValues(rowData);
+            outputVals.forEach(cell => {
+                const safeCell = cell ? String(cell).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+                tr.innerHTML += `<td>${safeCell}</td>`;
+            });
+            tbody.appendChild(tr);
+        });
+    } else {
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            headerRow.innerHTML += `<th>Columna ${idx + 1}</th>`;
+        }
+        thead.appendChild(headerRow);
+
+        // Render data rows
+        let translatorIndex = 1;
+        rawDataRows.forEach((rowData, rowIndex) => {
+            const fileRowNumber = rowIndex + 1; // 1-indexed row number in file
+            const isSelected = (fileRowNumber >= startRow && fileRowNumber <= endRow);
+
+            if (!isSelected && !previewModeShowAll) {
+                // If not selected and we show only selected, skip rendering entirely
+                return;
+            }
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-row-index', rowIndex);
+            if (!isSelected) {
+                tr.classList.add('row-selected-shading');
+            }
+
+            // Absolute index
+            tr.innerHTML = `<td class="col-abs-index" style="text-align: center; color: #94a3b8; font-weight: 600;">${fileRowNumber}</td>`;
+            // Relative translator index
+            if (isSelected) {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: var(--primary); font-weight: 600;">${translatorIndex++}</td>`;
+            } else {
+                tr.innerHTML += `<td class="col-rel-index" style="text-align: center; color: #94a3b8;">-</td>`;
+            }
+
+            rowData.forEach(cell => {
+                const safeCell = cell ? cell.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+                tr.innerHTML += `<td>${safeCell}</td>`;
+            });
+            tbody.appendChild(tr);
+        });
+    }
 
     // Actualizar dinámicamente los textos descriptivos de los desplegables basados en el rango
     updateIanseoTargetsDropdowns();
@@ -275,6 +471,15 @@ function renderRawCSV(csvText, fileName) {
     // Pintar información técnica
     document.getElementById('file-info').innerHTML = 
         `📁 <strong>${fileName}</strong> | Filas: <strong>${rawDataRows.length}</strong> | Delimitador: <strong>"${delimiter}"</strong>`;
+
+    // Reset view mode to input and show preview toggle wrapper
+    currentViewMode = 'input';
+    const btnViewInput = document.getElementById('btn-view-input');
+    const btnViewOutput = document.getElementById('btn-view-output');
+    if (btnViewInput) btnViewInput.classList.add('active');
+    if (btnViewOutput) btnViewOutput.classList.remove('active');
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'inline-flex';
 
     // Render table
     renderCSVTable();
@@ -582,6 +787,9 @@ function enterEditorMode(formatName, formatId = null) {
     
     const previewSpan = document.getElementById('format-desc-preview');
     if (previewSpan) previewSpan.style.display = 'none';
+
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'none';
     
     document.getElementById('btn-delete-profile').style.display = formatId ? 'inline-block' : 'none';
     document.getElementById('btn-exit-editor').style.display = 'inline-block';
@@ -668,6 +876,14 @@ function exitEditorMode() {
     
     const previewSpan = document.getElementById('format-desc-preview');
     if (previewSpan) previewSpan.style.display = 'none';
+
+    currentViewMode = 'input';
+    const btnViewInput = document.getElementById('btn-view-input');
+    const btnViewOutput = document.getElementById('btn-view-output');
+    if (btnViewInput) btnViewInput.classList.add('active');
+    if (btnViewOutput) btnViewOutput.classList.remove('active');
+    const toggleWrapper = document.getElementById('toggle-preview-wrapper');
+    if (toggleWrapper) toggleWrapper.style.display = 'none';
     
     const expColsInput = document.getElementById('editor-expected-cols');
     if (expColsInput) expColsInput.value = 22;
@@ -785,21 +1001,34 @@ function updateUIState() {
     const rows = tbody ? tbody.querySelectorAll('tr') : [];
 
     // 1. RESETEO TOTAL: Limpiar cabeceras, celdas y botones
-    const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
-    for (let idx = 0; idx < numCols; idx++) {
-        const th = ths[idx + 2];
-        if (th) {
-            th.innerHTML = `Columna ${idx + 1}`;
-            th.classList.remove('th-assigned');
-        }
-        // Limpiamos colores de todas las celdas de esta columna
-        rows.forEach(row => {
-            const td = row.querySelectorAll('td')[idx + 2];
-            if (td) {
-                td.style.backgroundColor = '';
-                td.removeAttribute('title');
-                td.classList.remove('cell-error-class');
+    if (currentViewMode === 'input') {
+        const numCols = (rawDataRows && rawDataRows[0]) ? rawDataRows[0].length : 0;
+        for (let idx = 0; idx < numCols; idx++) {
+            const th = ths[idx + 2];
+            if (th) {
+                th.innerHTML = `Columna ${idx + 1}`;
+                th.classList.remove('th-assigned');
             }
+            // Limpiamos colores de todas las celdas de esta columna
+            rows.forEach(row => {
+                const td = row.querySelectorAll('td')[idx + 2];
+                if (td) {
+                    td.style.backgroundColor = '';
+                    td.removeAttribute('title');
+                    td.classList.remove('cell-error-class');
+                }
+            });
+        }
+    } else {
+        // En vista output no queremos fondos de colores ni estilos de asignación residuales
+        rows.forEach(row => {
+            row.querySelectorAll('td').forEach((td, idx) => {
+                if (idx >= 2) {
+                    td.style.backgroundColor = '';
+                    td.removeAttribute('title');
+                    td.classList.remove('cell-error-class');
+                }
+            });
         });
     }
 
@@ -883,7 +1112,7 @@ function updateUIState() {
             const th = ths[targetCol];
 
             // Pintar Cabecera
-            if (th) {
+            if (currentViewMode === 'input' && th) {
                 th.innerHTML = `<strong>${th.innerText}</strong> <br><span style="color:var(--primary); font-size:0.75rem;">[${fieldName}]</span>`;
                 th.classList.add('th-assigned');
             }
@@ -899,20 +1128,22 @@ function updateUIState() {
                 const td = htmlRow.querySelectorAll('td')[targetCol];
                 if (!td) return;
 
-                if (fieldType === 'passthrough-date') {
-                    // Lógica especial para fechas
-                    if (cellValue !== "" && !dateRegex.test(cellValue)) {
-                        td.style.backgroundColor = '#fed7aa'; // Naranja alerta
-                        td.setAttribute('title', 'Formato incorrecto. Ianseo espera YYYY-MM-DD');
-                    } else if (cellValue !== "") {
-                        td.style.backgroundColor = '#f0fdf4'; // Verde OK
-                    }
-                } else {
-                    // Resto de columnas asignadas (Passthrough o Mapping en uso) se asumen OK
-                    if (cellValue !== "") {
-                        // Evitamos pisar el color si dos campos apuntan a la misma columna por error
-                        if (!td.style.backgroundColor || td.style.backgroundColor === 'rgb(240, 253, 244)') {
-                            td.style.backgroundColor = '#f0fdf4'; // Verde suave de éxito
+                if (currentViewMode === 'input') {
+                    if (fieldType === 'passthrough-date') {
+                        // Lógica especial para fechas
+                        if (cellValue !== "" && !dateRegex.test(cellValue)) {
+                            td.style.backgroundColor = '#fed7aa'; // Naranja alerta
+                            td.setAttribute('title', 'Formato incorrecto. Ianseo espera YYYY-MM-DD');
+                        } else if (cellValue !== "") {
+                            td.style.backgroundColor = '#f0fdf4'; // Verde OK
+                        }
+                    } else {
+                        // Resto de columnas asignadas (Passthrough o Mapping en uso) se asumen OK
+                        if (cellValue !== "") {
+                            // Evitamos pisar el color si dos campos apuntan a la misma columna por error
+                            if (!td.style.backgroundColor || td.style.backgroundColor === 'rgb(240, 253, 244)') {
+                                td.style.backgroundColor = '#f0fdf4'; // Verde suave de éxito
+                            }
                         }
                     }
                 }
@@ -939,8 +1170,15 @@ function updateUIState() {
                 const rawClass = rowData[classCol] ? rowData[classCol].trim() : '';
                 const rawGender = genderCol !== "" && rowData[genderCol] ? rowData[genderCol].trim() : '';
 
-                const tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 2];
-                const tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 2];
+                // Get the target DOM cells depending on the view mode
+                let tdClass, tdDob;
+                if (currentViewMode === 'output') {
+                    tdClass = htmlRow.querySelectorAll('td')[5]; // Class is 4th field (index 3 + 2)
+                    tdDob = htmlRow.querySelectorAll('td')[17];  // DOB is 16th field (index 15 + 2)
+                } else {
+                    tdClass = htmlRow.querySelectorAll('td')[parseInt(classCol) + 2];
+                    tdDob = htmlRow.querySelectorAll('td')[parseInt(dobCol) + 2];
+                }
 
                 if (!tdClass) return;
 
@@ -1440,7 +1678,7 @@ function appendRuleRow(keyVal, outVal, secVal, rData) {
     } else if (isClassMapping) {
         mainRow.innerHTML = `
             <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida (Vacío = sin valor)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
             <button type="button" class="btn-toggle-config btn-gear" title="Configurar Edades" style="width: 140px; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.8rem;">
                 ⚙️ Configurar Edades
             </button>
@@ -1449,7 +1687,7 @@ function appendRuleRow(keyVal, outVal, secVal, rData) {
     } else {
         mainRow.innerHTML = `
             <input type="text" value="${keyVal}" class="rule-key" placeholder="Texto CSV" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
-            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <input type="text" value="${outVal}" class="rule-out" placeholder="Salida (Vacío = sin valor)" style="flex:1; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 4px;">
             <button type="button" class="btn-delete-row" style="width:28px; height:28px; border:none; background:#fef2f2; color:#ef4444; border-radius:4px; cursor:pointer; font-weight:bold;">×</button>
         `;
     }
@@ -1657,6 +1895,26 @@ if (previewModeToggle) {
     });
 }
 
+const btnViewInput = document.getElementById('btn-view-input');
+const btnViewOutput = document.getElementById('btn-view-output');
+if (btnViewInput && btnViewOutput) {
+    btnViewInput.addEventListener('click', () => {
+        if (currentViewMode === 'input') return;
+        currentViewMode = 'input';
+        btnViewInput.classList.add('active');
+        btnViewOutput.classList.remove('active');
+        renderCSVTable();
+    });
+
+    btnViewOutput.addEventListener('click', () => {
+        if (currentViewMode === 'output') return;
+        currentViewMode = 'output';
+        btnViewOutput.classList.add('active');
+        btnViewInput.classList.remove('active');
+        renderCSVTable();
+    });
+}
+
 // 2. Pre-rellenar la fecha del torneo con la fecha de hoy al cargar la página e inicializar listeners
 document.addEventListener('DOMContentLoaded', () => {
     // 3. Listener del toggle de validación por edad
@@ -1717,147 +1975,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Compilar los datos del CSV
             const outputLines = [];
 
-            // Obtener mapeadores de columnas
-            const getSelectedColIdx = (fieldName) => {
-                const select = document.querySelector(`.target-field[data-field-name="${fieldName}"]`);
-                if (select && select.value !== "") {
-                    return parseInt(select.value);
-                }
-                return -1;
-            };
-
             // Recorrer las filas dentro del rango [startRow, endRow]
             for (let i = startRow - 1; i <= endRow - 1; i++) {
                 const rowData = rawDataRows[i];
                 if (!rowData) continue;
 
-                const exportCols = [];
-
-                // 1. Bib
-                let colIdx = getSelectedColIdx("Bib");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 2. Session
-                colIdx = getSelectedColIdx("Session");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Session[raw] && profileRulesRAM.Session[raw].out) || raw || "");
-                } else {
-                    const fixedInput = document.getElementById('session-fixed-value');
-                    exportCols.push(fixedInput ? fixedInput.value : "");
-                }
-
-                // 3. Division
-                colIdx = getSelectedColIdx("Division");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Division[raw] && profileRulesRAM.Division[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 4. Class
-                colIdx = getSelectedColIdx("Class");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Class[raw] && profileRulesRAM.Class[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 5. Target
-                colIdx = getSelectedColIdx("Target");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // Helper para mapear booleanos
-                const getBoolVal = (fieldName) => {
-                    const idx = getSelectedColIdx(fieldName);
-                    if (idx !== -1) {
-                        const raw = rowData[idx];
-                        const triggers = profileRulesRAM[fieldName] && profileRulesRAM[fieldName].triggers;
-                        if (triggers) {
-                            const triggerList = triggers.split(',').map(t => t.trim().toLowerCase());
-                            return triggerList.includes(raw.trim().toLowerCase()) ? "1" : "0";
-                        }
-                        return "0";
-                    }
-                    return "";
-                };
-
-                // 6. IndDivClass
-                exportCols.push(getBoolVal("IndDivClass"));
-                // 7. TeamDivClass
-                exportCols.push(getBoolVal("TeamDivClass"));
-                // 8. IndEvents
-                exportCols.push(getBoolVal("IndEvents"));
-                // 9. TeamEvents
-                exportCols.push(getBoolVal("TeamEvents"));
-                // 10. MixedEvents
-                exportCols.push(getBoolVal("MixedEvents"));
-
-                // 11. LastName
-                colIdx = getSelectedColIdx("LastName");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 12. Name
-                colIdx = getSelectedColIdx("Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 13. Gender
-                colIdx = getSelectedColIdx("Gender");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Gender[raw] && profileRulesRAM.Gender[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 14. Affil1Code
-                colIdx = getSelectedColIdx("Affil1Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil1[raw] && profileRulesRAM.Affil1[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 15. Affil1Name
-                colIdx = getSelectedColIdx("Affil1Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 16. DOB
-                colIdx = getSelectedColIdx("DOB");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 17. Subclass
-                colIdx = getSelectedColIdx("Subclass");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 18. Affil2Code
-                colIdx = getSelectedColIdx("Affil2Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil2[raw] && profileRulesRAM.Affil2[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 19. Affil2Name
-                colIdx = getSelectedColIdx("Affil2Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
-
-                // 20. Affil3Code
-                colIdx = getSelectedColIdx("Affil3Code");
-                if (colIdx !== -1) {
-                    const raw = rowData[colIdx];
-                    exportCols.push((profileRulesRAM.Affil3[raw] && profileRulesRAM.Affil3[raw].out) || raw || "");
-                } else {
-                    exportCols.push("");
-                }
-
-                // 21. Affil3Name
-                colIdx = getSelectedColIdx("Affil3Name");
-                exportCols.push(colIdx !== -1 ? rowData[colIdx] : "");
+                const exportCols = getRowOutputValues(rowData);
 
                 // Escapar todas las celdas y unir con ";"
                 const escapedLine = exportCols.map(val => {

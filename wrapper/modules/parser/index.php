@@ -102,8 +102,17 @@ require_once __DIR__ . '/../../core/auth_checker.php';
 
         <div class="split-layout">
             <div class="panel left-panel">
-                <div style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #64748b; text-transform: uppercase; font-weight: 600;">
-                    Previsualización del origen (As is)
+                <div style="margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; min-height: 28px;">
+                    <div id="table-view-title" style="font-size: 0.8rem; color: #64748b; text-transform: uppercase; font-weight: 600;">
+                        Previsualización del origen (As is)
+                    </div>
+                    <div id="toggle-preview-wrapper" class="hide-in-editor" style="display: none; align-items: center; gap: 0.35rem; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                        <span style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-right: 0.25rem;">Vista:</span>
+                        <div style="display: flex; gap: 2px;">
+                            <button id="btn-view-input" class="view-toggle-btn active-toggle" style="background: var(--primary); color: white; border: none; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Origen (Input)</button>
+                            <button id="btn-view-output" class="view-toggle-btn" style="background: transparent; color: #64748b; border: none; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">Resultado (Output)</button>
+                        </div>
+                    </div>
                 </div>
 		<div id="event-context-bar" class="hide-in-editor" style="display: flex; gap: 1.5rem; background: #ffffff; border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); flex-wrap: wrap;">
         	    <div style="display: flex; align-items: center; gap: 0.5rem;">
