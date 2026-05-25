@@ -1,5 +1,5 @@
 {
-  "current_task": "Fix format loading race conditions and persist special controls",
+  "current_task": "Implement event-mode-select persistence and translation logic",
   "step_active": "",
   "files_touching": [],
   "status": "COMPLETED"

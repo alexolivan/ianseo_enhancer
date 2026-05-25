@@ -56,6 +56,11 @@ function getSelectedColIdx(fieldName) {
 
 function getRowOutputValues(rowData) {
     const getBoolVal = (fieldName) => {
+        const modeSelect = document.querySelector(`.event-mode-select[data-field-name="${fieldName}"]`);
+        if (modeSelect) {
+            if (modeSelect.value === 'force-yes') return "1";
+            if (modeSelect.value === 'force-no') return "0";
+        }
         const idx = getSelectedColIdx(fieldName);
         if (idx !== -1) {
             const raw = rowData[idx];
@@ -67,7 +72,7 @@ function getRowOutputValues(rowData) {
             }
             return "0";
         }
-        return "";
+        return "0";
     };
 
     const outputValues = [];
@@ -612,6 +617,27 @@ function loadFormatFromData(formatData) {
                     if (sessionFixedInput) {
                         sessionFixedInput.value = rule.output_value;
                     }
+                } else if (rule.input_value && rule.input_value.endsWith('_mode')) {
+                    const fieldName = rule.input_value.replace('_mode', '');
+                    const modeSelect = document.querySelector(`.event-mode-select[data-field-name="${fieldName}"]`);
+                    if (modeSelect) {
+                        modeSelect.value = rule.output_value;
+                        const block = modeSelect.closest('.event-block');
+                        if (block) {
+                            const mappingRow = block.querySelector('.event-mapping-row');
+                            const targetSelect = block.querySelector('.target-field');
+                            if (rule.output_value === 'mapping') {
+                                if (mappingRow) mappingRow.style.display = 'flex';
+                                if (targetSelect) targetSelect.disabled = false;
+                            } else {
+                                if (mappingRow) mappingRow.style.display = 'none';
+                                if (targetSelect) {
+                                    targetSelect.value = "";
+                                    targetSelect.disabled = true;
+                                }
+                            }
+                        }
+                    }
                 }
             } else {
                 // Comprobar si es un mapeo booleano
@@ -821,6 +847,19 @@ function serializeRules() {
         });
     }
 
+    // Guardar los modos de los selectores tri-estado de eventos
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        const fieldName = sel.getAttribute('data-field-name');
+        if (fieldName) {
+            rules.push({
+                ianseo_field: 'Config',
+                input_value: fieldName + '_mode',
+                output_value: sel.value,
+                secondary_output: null
+            });
+        }
+    });
+
     return rules;
 }
 
@@ -924,7 +963,7 @@ function exitEditorMode() {
     currentFormatDescription = "";
     currentlyLoadedFormatData = null;
     
-    // Restaurar controles especiales
+    // Restaurar controles especiales y desplegables tri-estado
     const ageToggle = document.getElementById('class-age-validation-toggle');
     if (ageToggle) {
         ageToggle.checked = false;
@@ -934,6 +973,19 @@ function exitEditorMode() {
     if (sessionFixedInput) {
         sessionFixedInput.value = "";
     }
+    document.querySelectorAll('.event-mode-select').forEach(sel => {
+        sel.value = "force-yes";
+        const block = sel.closest('.event-block');
+        if (block) {
+            const mappingRow = block.querySelector('.event-mapping-row');
+            const targetSelect = block.querySelector('.target-field');
+            if (mappingRow) mappingRow.style.display = 'none';
+            if (targetSelect) {
+                targetSelect.value = "";
+                targetSelect.disabled = true;
+            }
+        }
+    });
     
     document.body.classList.remove('editor-active');
     workspace.classList.remove('editor-active');
